@@ -2,9 +2,6 @@
 #include <xmmintrin.h>
 #include <cmath>
 #include <omp.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-namespace py = pybind11;
 
 ///
 ///  Gaussian kernel:
@@ -109,58 +106,14 @@ float solve_intercept(const float *x, const float *y, float x0, float h, int n)
     return denom > 0? numer / denom : 0;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
-void ensure_1d_contiguous(py::array_t<float> &array)
-{
-    if (array.ndim() > 1) {
-        throw std::runtime_error("input must be 1-dimensional");
+extern "C" {
+    void lowess_smooth(float *y_out, const float *xi, int m,
+                       const float *x, const float *y, int n,
+                       float h)
+    {
+        #pragma omp parallel for schedule(static)
+        for (int i = 0; i < m; i++) {
+            y_out[i] = solve_intercept(x, y, xi[i], h, n);
+        }
     }
-    if (array.strides(0) != array.itemsize()) {
-        throw std::runtime_error("input is not contiguous");
-    }
-}
-
-py::array_t<float> lowess(
-    py::array_t<float> x,
-    py::array_t<float> y,
-    py::array_t<float> xi,
-    float h
-)
-{
-    ensure_1d_contiguous(x);
-    ensure_1d_contiguous(y);
-    ensure_1d_contiguous(xi);
-    if (x.shape(0) != y.shape(0)) {
-        throw std::runtime_error("x and y are not the same shape");
-    }
-
-    auto x_buffer  = x.request();
-    auto y_buffer  = y.request();
-    auto xi_buffer = xi.request();
-
-    int n = x.shape(0);
-    int m = xi.shape(0);
-    auto yi = py::array_t<float>(m);
-    auto yi_buffer = yi.request(true);
-
-    float *px  = static_cast<float*>(x_buffer.ptr);
-    float *py  = static_cast<float*>(y_buffer.ptr);
-    float *pxi = static_cast<float*>(xi_buffer.ptr);
-    float *pyi = static_cast<float*>(yi_buffer.ptr);
-
-    #pragma omp parallel for schedule(static)
-    for (int i = 0; i < m; i++) {
-        pyi[i] = solve_intercept(px, py, pxi[i], h, n);
-    }
-    return yi;
-}
-
-PYBIND11_MODULE(lowesslib, m)
-{
-    py::options options;
-    options.disable_function_signatures();
-
-    m.doc() = "LOWESS: Locally Weighted Scatterplot Smoothing";
-    m.def("lowess", &lowess, "Lowess smoothing");
 }
