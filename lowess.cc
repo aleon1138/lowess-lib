@@ -84,36 +84,26 @@ coeff_t solve_intercept_simd(const float *x_, const float *y_, float x0_, float 
     // *INDENT-ON*
 }
 
-float solve_intercept(const float *x, const float *y, float x0, float h, int n)
-{
-    int n0 = n - (n%8);
-    coeff_t o = solve_intercept_simd(x, y, x0, h, n0);
-
-    float k = 1.0f / h;
-    for (int i = n0; i < n; ++i) {
-        float u = (x0 - x[i]) * k;
-        float w = expf(-0.5 * u * u);
-        float w2 = w * w;
-        o.x00 += w2;
-        o.x01 += w2 * u;
-        o.x11 += w2 * u * u;
-        o.xy0 += w2 * y[i];
-        o.xy1 += w2 * y[i] * u;
-    }
-
-    float numer = o.x11 * o.xy0 - o.x01 * o.xy1;
-    float denom = o.x00 * o.x11 - o.x01 * o.x01;
-    return denom > 0? numer / denom : 0;
-}
-
 extern "C" {
-    void lowess_smooth(float *y_out, const float *xi, int m,
-                       const float *x, const float *y, int n,
-                       float h)
+    float solve_intercept(const float *x, const float *y, float x0, float h, int n)
     {
-        #pragma omp parallel for schedule(static)
-        for (int i = 0; i < m; i++) {
-            y_out[i] = solve_intercept(x, y, xi[i], h, n);
+        int n0 = n - (n%8);
+        coeff_t o = solve_intercept_simd(x, y, x0, h, n0);
+
+        float k = 1.0f / h;
+        for (int i = n0; i < n; ++i) {
+            float u = (x0 - x[i]) * k;
+            float w = expf(-0.5 * u * u);
+            float w2 = w * w;
+            o.x00 += w2;
+            o.x01 += w2 * u;
+            o.x11 += w2 * u * u;
+            o.xy0 += w2 * y[i];
+            o.xy1 += w2 * y[i] * u;
         }
+
+        float numer = o.x11 * o.xy0 - o.x01 * o.xy1;
+        float denom = o.x00 * o.x11 - o.x01 * o.x01;
+        return denom > 0? numer / denom : 0;
     }
 }

@@ -3,18 +3,16 @@
 namespace py = pybind11;
 
 extern "C" {
-    void lowess_smooth(float *y_out, const float *xi, int m,
-                       const float *x, const float *y, int n,
-                       float h);
+    float solve_intercept(const float *x, const float *y, float x0, float h, int n);
 }
 
 void ensure_1d_contiguous(py::array_t<float> &array)
 {
     if (array.ndim() > 1) {
-        throw std::runtime_error("input must be 1-dimensional");
+        throw std::invalid_argument("input must be 1-dimensional");
     }
     if (array.strides(0) != array.itemsize()) {
-        throw std::runtime_error("input is not contiguous");
+        throw std::invalid_argument("input is not contiguous");
     }
 }
 
@@ -26,28 +24,40 @@ py::array_t<float> smooth(
 )
 {
     if (x.shape(0) != y.shape(0)) {
-        throw std::runtime_error("x and y are not of the same length");
+        throw std::invalid_argument("x and y are not of the same length");
     }
     if (x.shape(0) == 0) {
-        throw std::runtime_error("array of sample points is empty");
+        throw std::invalid_argument("array of sample points is empty");
     }
     ensure_1d_contiguous(x);
     ensure_1d_contiguous(y);
     ensure_1d_contiguous(xi);
 
+    auto yi = py::array_t<float>(xi.shape(0));
     auto x_buffer  = x.request();
     auto y_buffer  = y.request();
     auto xi_buffer = xi.request();
-
-    auto yi = py::array_t<float>(xi.shape(0));
     auto yi_buffer = yi.request(true);
 
-    lowess_smooth(static_cast<float*>(yi_buffer.ptr),
-                  static_cast<float*>(xi_buffer.ptr),
-                  xi.shape(0),
-                  static_cast<float*>(x_buffer.ptr),
-                  static_cast<float*>(y_buffer.ptr),
-                  x.shape(0), h);
+    float *pxi = static_cast<float*>(xi_buffer.ptr);
+    float *pyi = static_cast<float*>(yi_buffer.ptr);
+    float *px  = static_cast<float*>(x_buffer.ptr);
+    float *py  = static_cast<float*>(y_buffer.ptr);
+    int m = xi.shape(0);
+    int n = x.shape(0);
+    bool ok = true; // needed to exit OMP block
+
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < m; i++) {
+        ok &= (PyErr_CheckSignals() == 0);
+        if (ok) {
+            pyi[i] = solve_intercept(px, py, pxi[i], h, n);
+        }
+    }
+
+    if (!ok) {
+        throw py::error_already_set();
+    }
     return yi;
 }
 
