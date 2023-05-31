@@ -1,1 +1,3 @@
-lowesslib.so
+dist/
+build/
+lowesslib.egg-info/
