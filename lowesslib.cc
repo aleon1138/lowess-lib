@@ -27,15 +27,11 @@ py::array_t<float> smooth(
     verify(y.ndim()  == 1, "y must be 1-dimensional");
 
     auto yi = py::array_t<float>(xi.shape(0));
-    auto x_buffer  = x.request();
-    auto y_buffer  = y.request();
-    auto xi_buffer = xi.request();
-    auto yi_buffer = yi.request(true);
+    float *pyi = yi.mutable_data(0);
 
-    float *pxi = static_cast<float*>(xi_buffer.ptr);
-    float *pyi = static_cast<float*>(yi_buffer.ptr);
-    float *px  = static_cast<float*>(x_buffer.ptr);
-    float *py  = static_cast<float*>(y_buffer.ptr);
+    const float *pxi = xi.data(0);
+    const float *px  = x.data(0);
+    const float *py  = y.data(0);
     int m = xi.shape(0);
     int n = x.shape(0);
 
