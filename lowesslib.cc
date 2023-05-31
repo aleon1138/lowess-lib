@@ -6,20 +6,10 @@ extern "C" {
     float solve_intercept(const float *x, const float *y, float x0, float h, int n);
 }
 
-void ensure_1d_contiguous(py::array_t<float> &array)
-{
-    if (array.ndim() > 1) {
-        throw std::invalid_argument("input must be 1-dimensional");
-    }
-    if (array.strides(0) != array.itemsize()) {
-        throw std::invalid_argument("input is not contiguous");
-    }
-}
-
 py::array_t<float> smooth(
-    py::array_t<float> xi,
-    py::array_t<float> x,
-    py::array_t<float> y,
+    py::array_t<float, py::array::f_style | py::array::forcecast> xi,
+    py::array_t<float, py::array::f_style | py::array::forcecast> x,
+    py::array_t<float, py::array::f_style | py::array::forcecast> y,
     float h
 )
 {
@@ -29,9 +19,15 @@ py::array_t<float> smooth(
     if (x.shape(0) == 0) {
         throw std::invalid_argument("array of sample points is empty");
     }
-    ensure_1d_contiguous(x);
-    ensure_1d_contiguous(y);
-    ensure_1d_contiguous(xi);
+    if (xi.ndim() > 1) {
+        throw std::invalid_argument("xi must be 1-dimensional");
+    }
+    if (x.ndim() > 1) {
+        throw std::invalid_argument("x must be 1-dimensional");
+    }
+    if (y.ndim() > 1) {
+        throw std::invalid_argument("y must be 1-dimensional");
+    }
 
     auto yi = py::array_t<float>(xi.shape(0));
     auto x_buffer  = x.request();
@@ -67,5 +63,6 @@ PYBIND11_MODULE(lowesslib, m)
     options.disable_function_signatures();
 
     m.doc() = "LOWESS: Locally Weighted Scatterplot Smoothing";
-    m.def("smooth", &smooth, "Lowess smoothing");
+    m.def("smooth", &smooth, "Lowess smoothing",
+          py::arg("xi"), py::arg("x"), py::arg("y"), py::arg("h"));
 }
