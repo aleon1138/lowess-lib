@@ -84,6 +84,22 @@ coeff_t solve_intercept_simd(const float *x_, const float *y_, float x0_, float 
     // *INDENT-ON*
 }
 
+
+float histogram_kernel_simd(const float *x_, float x0_, float h, int n)
+{
+    __m256 s  = _mm256_setzero_ps();
+    __m256 k  = _mm256_set1_ps(1.0f / h);
+    __m256 x0 = _mm256_set1_ps(x0_);
+
+    for (int i = 0; i < n; i += 8) {
+        __m256 x = _mm256_loadu_ps(x_+i);
+        __m256 u = _mm256_mul_ps(_mm256_sub_ps(x0, x), k);
+        s = _mm256_add_ps(_mm256_gauss_kernel_ps(u), s);
+    }
+    return hsum(s);
+}
+
+
 extern "C" {
     float solve_intercept(const float *x, const float *y, float x0, float h, int n)
     {
@@ -93,7 +109,7 @@ extern "C" {
         float k = 1.0f / h;
         for (int i = n0; i < n; ++i) {
             float u = (x0 - x[i]) * k;
-            float w = expf(-0.5 * u * u);
+            float w = expf(-0.5f * u * u);
             float w2 = w * w;
             o.x00 += w2;
             o.x01 += w2 * u;
@@ -105,5 +121,20 @@ extern "C" {
         float numer = o.x11 * o.xy0 - o.x01 * o.xy1;
         float denom = o.x00 * o.x11 - o.x01 * o.x01;
         return denom > 0? numer / denom : 0;
+    }
+
+    float histogram_kernel(const float *x, float x0, float h, int n)
+    {
+        int n0 = n - (n%8);
+        float s = histogram_kernel_simd(x, x0, h, n0);
+
+        float k = 1.0f / h;
+        for (int i = n0; i < n; ++i) {
+            float u = (x0 - x[i]) * k;
+            s += expf(-0.5f * u * u);
+        }
+
+        const float K0 = 0.3989422804014327f; // 1/sqrt(2*pi)
+        return K0 * s / (n * h);
     }
 }
