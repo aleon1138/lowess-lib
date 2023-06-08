@@ -1,5 +1,5 @@
-all:
-	python setup.py build
+install:
+	pip install .
 
 format:
 	astyle -A4 -S -z2 -n -j *.cc
