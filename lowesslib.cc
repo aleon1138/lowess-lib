@@ -1,11 +1,30 @@
+#include <optional>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+
 namespace py = pybind11;
 typedef py::array_t<float, py::array::f_style | py::array::forcecast> array_t;
 
 extern "C" {
     float solve_intercept(const float *x, const float *y, float x0, float h, int n);
     float histogram_kernel(const float *x, float x0, float h, int n);
+}
+
+/*
+ *  Use interquartile range to get a default kernel bandwidth
+ */
+float default_bandwidth(const float *x, int n, int nbins)
+{
+    float *y = new float[n];
+    std::memcpy(y, x, n*sizeof(float));
+    std::sort(y, y+n);
+    float q25 = y[n*1/4];
+    float q75 = y[n*3/4];
+    delete [] y;
+
+    float A = (q75 - q25) / 1.349f;  // Eq (3.3)
+    return 0.9f * A / sqrtf(nbins);  // Eq (3.2)
 }
 
 void verify(bool cond, const char*msg)
@@ -47,19 +66,20 @@ py::array_t<float> smooth(array_t xi, array_t x, array_t y, float h)
     return yi;
 }
 
-py::array_t<float> histogram(array_t x, array_t bins, float h)
+py::array_t<float> histogram(array_t x, array_t bins, std::optional<float> bandwidth)
 {
     int m = bins.shape(0);
     int n = x.shape(0);
     py::array_t<float> y = py::array_t<float>(m);
 
-    float       *p_y    = y.mutable_data(0);
-    const float *p_x    = x.mutable_data(0);
-    const float *p_bins = bins.mutable_data(0);
+    float       *p_y = y.mutable_data(0);
+    const float *p_x = x.mutable_data(0);
+    const float *p_b = bins.mutable_data(0);
+    float h = bandwidth? bandwidth.value() : default_bandwidth(p_x, n, m);
 
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < m; ++i) {
-        p_y[i] = histogram_kernel(p_x, p_bins[i], h, n);
+        p_y[i] = histogram_kernel(p_x, p_b[i], h, n);
     }
     return y;
 }
@@ -69,6 +89,8 @@ PYBIND11_MODULE(lowesslib, m)
     m.doc() = "LOWESS: Locally Weighted Scatterplot Smoothing";
     m.def("smooth", &smooth, "Lowess smoothing",
           py::arg("xi"), py::arg("x"), py::arg("y"), py::arg("h"));
-    m.def("histogram", &histogram, "Lowess histogram",
-          py::arg("x"), py::arg("bins"), py::arg("h"));
+    m.def("histogram", &histogram,
+          "Histogram via kernel density estimation\n\n"
+          "See: Chapter 3 of \"Applied Regression Analysis and Generalized Linear Models\"",
+          py::arg("x"), py::arg("bins"), py::arg("bandwidth"));
 }

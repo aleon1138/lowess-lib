@@ -3,9 +3,9 @@ import pybind11
 
 module = Extension(
     "lowesslib",
-    extra_compile_args=["-fopenmp", "-march=native"],
+    extra_compile_args=["-fopenmp", "-march=native", "-std=c++17"],
     extra_link_args=["-fopenmp"],
-    include_dirs = [pybind11.get_include()],
+    include_dirs=[pybind11.get_include()],
     sources=["lowess.cc", "lowesslib.cc"],
 )
 
