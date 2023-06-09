@@ -12,23 +12,19 @@ extern "C" {
 }
 
 /*
- *  Use interquartile range to get a default kernel bandwidth
+ *  Use interquartile range to get a default kernel bandwidth. We use a rough
+ *  approximation via gradient descent.
  */
-float default_bandwidth(array_t x, int nbins)
+float default_bandwidth(const float *x, int n, int nbins)
 {
-    //
-    // TODO - remove the need to call numpy here. We are forced to do this
-    // because our initial C++ implementation was 4x slower than numpy's.
-    //
-    py::object np = py::module_::import("numpy");
-    py::object quantile = np.attr("quantile");
-
-    py::array_t<float> cuts = py::array_t<float>(2);
-    cuts.mutable_at(0) = 0.25;
-    cuts.mutable_at(1) = 0.75;
-    py::array_t<float> q = quantile(x, cuts).cast<py::array_t<float>>();
-
-    float A = (q.at(1) - q.at(0)) / 1.349f;  // Eq (3.3)
+    float q25(0), q75(0);
+    float w = 1.0f/float(n);
+    #pragma omp parallel for reduction(+:q25,q75) schedule(static)
+    for (int i = 0; i < n; ++i) {
+        q25 += w * ((q25 > x[i])? -0.75f : 0.25f);
+        q75 += w * ((q75 > x[i])? -0.25f : 0.75f);
+    }
+    float A = (q75 - q25) / 1.349f;  // Eq (3.3)
     return 0.9f * A / sqrtf(nbins);  // Eq (3.2)
 }
 
@@ -75,14 +71,14 @@ py::array_t<float> histogram(array_t x, array_t bins, std::optional<float> bandw
 {
     verify(x.ndim() == 1 or x.shape(1)==1, "x must be 1-dimensional");
 
-    int m = bins.shape(0);
     int n = x.shape(0);
+    int m = bins.shape(0);
     py::array_t<float> y = py::array_t<float>(m);
 
     float       *p_y = y.mutable_data(0);
     const float *p_x = x.mutable_data(0);
     const float *p_b = bins.mutable_data(0);
-    float h = bandwidth? bandwidth.value() : default_bandwidth(x, m);
+    float h = bandwidth? bandwidth.value() : default_bandwidth(p_x, n, m);
 
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < m; ++i) {
