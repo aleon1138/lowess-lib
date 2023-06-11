@@ -36,7 +36,7 @@ xi = np.linspace(-2*np.pi, 2*np.pi, 100)
 %timeit z1 = lowesslib.smooth(xi, x, y, 2.7)
 ```
 
-Results are quite dramatic: over 20-thousand times faster than statsmodels.
+Results are quite dramatic: over 20,000 times faster than statsmodels.
 
 ```
 statsmodels:
