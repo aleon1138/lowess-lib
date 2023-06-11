@@ -1,12 +1,12 @@
-# lowess-lib
+# lowesslib
 Highly optimized LOWESS utilities for Python
 
-This is a minimal python library for using local regression, also known as 
+This is a minimal python library for evaluating local regression, also known as 
 Locally Weighted Scatterplot Smoothing ([LOWESS](https://en.wikipedia.org/wiki/Local_regression)).
 
-In my day-to-day work I use this extensively and just out of sheer repetition I 
-need something that is as fast as possible, so I'm making use of [OpenMP](www.openmp.org) 
-and [AVX](https://en.wikipedia.org/wiki/AVX-512) instructions. 
+I use this extensively in my day-to-day work and out of sheer repetition I 
+require something that is as fast as possible. To acheive the best performance I'm 
+making use of [OpenMP](www.openmp.org) and [AVX](https://en.wikipedia.org/wiki/AVX-512) instructions. 
 
 ## Requirements
 
