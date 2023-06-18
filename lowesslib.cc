@@ -6,10 +6,8 @@
 namespace py = pybind11;
 typedef py::array_t<float, py::array::f_style | py::array::forcecast> array_t;
 
-extern "C" {
-    float solve_intercept(const float *x, const float *y, float x0, float h, int n);
-    float histogram_kernel(const float *x, float x0, float h, int n);
-}
+float solve_intercept(const float *x, const float *y, float x0, float h, int n);
+float histogram_kernel(const float *x, float x0, float h, int n);
 
 /*
  *  Use interquartile range to get a default kernel bandwidth. We use a rough

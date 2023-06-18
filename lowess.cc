@@ -100,41 +100,39 @@ float histogram_kernel_simd(const float *x_, float x0_, float h, int n)
 }
 
 
-extern "C" {
-    float solve_intercept(const float *x, const float *y, float x0, float h, int n)
-    {
-        int n0 = n - (n%8);
-        coeff_t o = solve_intercept_simd(x, y, x0, h, n0);
+float solve_intercept(const float *x, const float *y, float x0, float h, int n)
+{
+    int n0 = n - (n%8);
+    coeff_t o = solve_intercept_simd(x, y, x0, h, n0);
 
-        float k = 1.0f / h;
-        for (int i = n0; i < n; ++i) {
-            float u = (x0 - x[i]) * k;
-            float w = expf(-0.5f * u * u);
-            float w2 = w * w;
-            o.x00 += w2;
-            o.x01 += w2 * u;
-            o.x11 += w2 * u * u;
-            o.xy0 += w2 * y[i];
-            o.xy1 += w2 * y[i] * u;
-        }
-
-        float numer = o.x11 * o.xy0 - o.x01 * o.xy1;
-        float denom = o.x00 * o.x11 - o.x01 * o.x01;
-        return denom > 0? numer / denom : 0;
+    float k = 1.0f / h;
+    for (int i = n0; i < n; ++i) {
+        float u = (x0 - x[i]) * k;
+        float w = expf(-0.5f * u * u);
+        float w2 = w * w;
+        o.x00 += w2;
+        o.x01 += w2 * u;
+        o.x11 += w2 * u * u;
+        o.xy0 += w2 * y[i];
+        o.xy1 += w2 * y[i] * u;
     }
 
-    float histogram_kernel(const float *x, float x0, float h, int n)
-    {
-        int n0 = n - (n%8);
-        float s = histogram_kernel_simd(x, x0, h, n0);
+    float numer = o.x11 * o.xy0 - o.x01 * o.xy1;
+    float denom = o.x00 * o.x11 - o.x01 * o.x01;
+    return denom > 0? numer / denom : 0;
+}
 
-        float k = 1.0f / h;
-        for (int i = n0; i < n; ++i) {
-            float u = (x0 - x[i]) * k;
-            s += expf(-0.5f * u * u);
-        }
+float histogram_kernel(const float *x, float x0, float h, int n)
+{
+    int n0 = n - (n%8);
+    float s = histogram_kernel_simd(x, x0, h, n0);
 
-        const float K0 = 0.3989422804014327f; // 1/sqrt(2*pi)
-        return K0 * s / (n * h);
+    float k = 1.0f / h;
+    for (int i = n0; i < n; ++i) {
+        float u = (x0 - x[i]) * k;
+        s += expf(-0.5f * u * u);
     }
+
+    const float K0 = 0.3989422804014327f; // 1/sqrt(2*pi)
+    return K0 * s / (n * h);
 }
