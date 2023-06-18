@@ -74,8 +74,8 @@ py::array_t<float> histogram(array_t x, array_t bins, std::optional<float> bandw
     py::array_t<float> y = py::array_t<float>(m);
 
     float       *p_y = y.mutable_data(0);
-    const float *p_x = x.mutable_data(0);
-    const float *p_b = bins.mutable_data(0);
+    const float *p_x = x.data(0);
+    const float *p_b = bins.data(0);
     float h = bandwidth? bandwidth.value() : default_bandwidth(p_x, n, m);
 
     #pragma omp parallel for schedule(static)
