@@ -11,20 +11,21 @@ float solve_intercept(const float *x, const float *y, float x0, float h, int n);
 float histogram_kernel(const float *x, float x0, float h, int n);
 
 /*
- *  Use interquartile range to get a default kernel bandwidth. We use a rough
- *  approximation via gradient descent.
+ *  Approximate interquartile range via gradient descent.
  */
-float default_bandwidth(const float *x, int n, int nbins)
+float interquartile_range(const array_t &x)
 {
+    const float *px  = x.data(0);
+    int n = x.shape(0);
+
     float q25(0), q75(0);
     float w = 1.0f/float(n);
     #pragma omp parallel for reduction(+:q25,q75) schedule(static)
     for (int i = 0; i < n; ++i) {
-        q25 += w * ((q25 > x[i])? -0.75f : 0.25f);
-        q75 += w * ((q75 > x[i])? -0.25f : 0.75f);
+        q25 += w * ((q25 > px[i])? -0.75f : 0.25f);
+        q75 += w * ((q75 > px[i])? -0.25f : 0.75f);
     }
-    float A = (q75 - q25) / 1.349f;  // Eq (3.3)
-    return 0.9f * A / sqrtf(nbins);  // Eq (3.2)
+    return q75 - q25;
 }
 
 void verify(bool cond, const char*msg)
@@ -34,7 +35,7 @@ void verify(bool cond, const char*msg)
     }
 }
 
-py::array_t<float> smooth(array_t xi, array_t x, array_t y, float h)
+py::array_t<float> smooth(array_t xi, array_t x, array_t y, std::optional<float> bandwidth)
 {
     verify(x.shape(0) == y.shape(0), "x and y are not of the same length");
     verify(x.shape(0) > 0, "x is empty");
@@ -50,6 +51,17 @@ py::array_t<float> smooth(array_t xi, array_t x, array_t y, float h)
     const float *py  = y.data(0);
     int m = xi.shape(0);
     int n = x.shape(0);
+
+    float h;
+    if (bandwidth) {
+        h = bandwidth.value();
+    }
+    else {
+        h = interquartile_range(x) * 1.414f;
+    }
+    if (h <= 0) {
+        throw std::invalid_argument("invalid bandwidth");
+    }
 
     bool ok = true; // needed to exit OMP block
     #pragma omp parallel for schedule(static)
@@ -77,7 +89,18 @@ py::array_t<float> histogram(array_t x, array_t bins, std::optional<float> bandw
     float       *p_y = y.mutable_data(0);
     const float *p_x = x.data(0);
     const float *p_b = bins.data(0);
-    float h = bandwidth? bandwidth.value() : default_bandwidth(p_x, n, m);
+
+    float h;
+    if (bandwidth) {
+        h = bandwidth.value();
+    }
+    else {
+        float A = interquartile_range(x) / 1.349f;  // Eq (3.3)
+        h = 0.9f * A / sqrtf(m);                    // Eq (3.2)
+    }
+    if (h <= 0) {
+        throw std::invalid_argument("invalid bandwidth");
+    }
 
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < m; ++i) {
@@ -90,7 +113,7 @@ PYBIND11_MODULE(lowesslib, m)
 {
     m.doc() = "LOWESS: Locally Weighted Scatterplot Smoothing";
     m.def("smooth", &smooth, "Lowess smoothing",
-          py::arg("xi"), py::arg("x"), py::arg("y"), py::arg("h"));
+          py::arg("xi"), py::arg("x"), py::arg("y"), py::arg("bandwidth") = py::none());
     m.def("histogram", &histogram,
           "Histogram via kernel density estimation\n\n"
           "See: Chapter 3 of \"Applied Regression Analysis and Generalized Linear Models\"",
