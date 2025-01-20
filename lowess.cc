@@ -1,7 +1,6 @@
 #include <immintrin.h>
 #include <xmmintrin.h>
 #include <cmath>
-#include <omp.h>
 
 ///
 ///  Gaussian kernel:
