@@ -21,7 +21,6 @@ float interquartile_range_approx(const array_t &x)
 
     float q25(0), q75(0);
     float w = 1.0f/float(n);
-    #pragma omp parallel for reduction(+:q25,q75) schedule(static)
     for (int i = 0; i < n; ++i) {
         q25 += w * ((q25 > px[i])? -0.75f : 0.25f);
         q75 += w * ((q75 > px[i])? -0.25f : 0.75f);
