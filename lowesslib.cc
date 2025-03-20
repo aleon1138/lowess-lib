@@ -163,7 +163,7 @@ PYBIND11_MODULE(lowesslib, m)
     m.doc() = "LOWESS: Locally Weighted Scatterplot Smoothing";
 
     m.def("smooth", &smooth,
-          R"pbdoc(smooth(xi, x, y, bandwidth=None)
+          R"pbdoc(smooth(x, y, bins=100, bandwidth=None)
 
     Perform LOWESS smoothing on one-dimensional data.
 
@@ -173,8 +173,10 @@ PYBIND11_MODULE(lowesslib, m)
         Independent variable.
     y : (N,) array_like
         Dependent or response variable.
-    xi : (M,) array_like
-        Location of interpolation points along `x`.
+    bins : int or sequence of scalars, optional
+        If `bins` is an int, it defines the number of quantiles in `x` to use
+        as a sequence. If `bins` is a sequence, it is taken as the location
+        of interpolation points along `x`.
     bandwidth : float, optional
         Kernel bandwidth for smoothing, this should be in the same units as `x`.
 
@@ -185,7 +187,7 @@ PYBIND11_MODULE(lowesslib, m)
     yi : ndarray
          Smoothed interpolated valued of `y` at `xi`)pbdoc",
 
-          py::arg("x"), py::arg("y"), py::arg("xi") = 100, py::arg("bandwidth") = py::none());
+          py::arg("x"), py::arg("y"), py::arg("bins") = 100, py::arg("bandwidth") = py::none());
 
     //-------------------------------------------------------------------------
 
