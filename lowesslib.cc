@@ -120,7 +120,7 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
         // 3.12 is more strict in catching the error. I could not figure out how
         // to do this without causing a deadlock, so we'll just disable it for now.
         // See: https://stackoverflow.com/q/78200321
-        ok &= (PyErr_CheckSignals() == 0);  // exit look on CTRL-C
+        ok &= (PyErr_CheckSignals() == 0);  // exit loop on CTRL-C
 # endif
 
         if (ok) {
