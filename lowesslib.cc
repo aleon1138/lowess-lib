@@ -69,7 +69,7 @@ array_t generate_bins(array_t x, int bins)
     return array_t(out.size(), out.data());
 }
 
-std::tuple<array_t,array_t> smooth(py::object bins, array_t x, array_t y, std::optional<float> bandwidth)
+std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::optional<float> bandwidth)
 {
     verify(x.shape(0) == y.shape(0), "x and y are not of the same length");
     verify(x.shape(0) > 0, "x is empty");
@@ -169,12 +169,12 @@ PYBIND11_MODULE(lowesslib, m)
 
     Parameters
     ----------
-    xi : (M,) array_like
-        Location of interpolation points along `x`.
     x : (N,) array_like
         Independent variable.
     y : (N,) array_like
         Dependent or response variable.
+    xi : (M,) array_like
+        Location of interpolation points along `x`.
     bandwidth : float, optional
         Kernel bandwidth for smoothing, this should be in the same units as `x`.
 
@@ -185,7 +185,7 @@ PYBIND11_MODULE(lowesslib, m)
     yi : ndarray
          Smoothed interpolated valued of `y` at `xi`)pbdoc",
 
-          py::arg("xi"), py::arg("x"), py::arg("y"), py::arg("bandwidth") = py::none());
+          py::arg("x"), py::arg("y"), py::arg("xi"), py::arg("bandwidth") = py::none());
 
     //-------------------------------------------------------------------------
 
