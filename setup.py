@@ -7,9 +7,12 @@ MAX_PYTHON_VERSION = (3, 11)
 # Get the current Python version
 current_version = sys.version_info[:2]  # (major, minor)
 
-# There are API conflicts with python 3.12+ due to OpenMP api changes
+# There are API conflicts with python 3.12+ and OpenMP
 if current_version > MAX_PYTHON_VERSION:
-    raise SystemExit(f"Error: Python {sys.version} is too new. Maximum supported version is {MAX_PYTHON_VERSION[0]}.{MAX_PYTHON_VERSION[1]}.")
+    s = lambda v: f"{v[0]}.{v[1]}"
+    raise SystemExit(
+        f"Error: Python {s(current_version)} not supported due to OpenMP incompatibility. Maximum supported version is {s(MAX_PYTHON_VERSION)}."
+    )
 
 
 module = Extension(
