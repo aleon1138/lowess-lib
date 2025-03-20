@@ -119,11 +119,57 @@ py::array_t<float> histogram(array_t x, array_t bins, std::optional<float> bandw
 
 PYBIND11_MODULE(lowesslib, m)
 {
+    py::options options;
+    options.disable_function_signatures(); // Disable auto-generated
+
     m.doc() = "LOWESS: Locally Weighted Scatterplot Smoothing";
-    m.def("smooth", &smooth, "Lowess smoothing",
+
+    m.def("smooth", &smooth,
+          R"pbdoc(smooth(xi, x, y, bandwidth=None)
+
+    Perform LOWESS smoothing on one-dimensional data.
+
+    Parameters
+    ----------
+    xi : (M,) array_like
+        Location of interpolation points along `x`.
+    x : (N,) array_like
+        Independent variable.
+    y : (N,) array_like
+        Dependent or response variable.
+    bandwidth : float, optional
+        Kernel bandwidth for smoothing, this should be in the same units as `x`.
+
+    Returns
+    -------
+    yi : (M,) ndarray
+         Smoothed interpolated valued of `y` at `xi`)pbdoc",
+
           py::arg("xi"), py::arg("x"), py::arg("y"), py::arg("bandwidth") = py::none());
+
     m.def("histogram", &histogram,
-          "Histogram via kernel density estimation\n\n"
-          "See: Chapter 3 of \"Applied Regression Analysis and Generalized Linear Models\"",
+          R"pbdoc(histogram(x, bins, bandwidth=None)
+
+    Compute the histogram of a dataset via kernel density estimation.
+
+    Parameters
+    ----------
+    x : (M,) array_like
+        Input data. The histogram is computed over the entire array.
+    bins : (N,) array_like
+        A monotonically increasing array of bin centre locations, allowing for
+        non-uniform bind widths.
+
+    Returns
+    -------
+    bins : ndarray
+        The bins centre locations.
+    density : ndarray
+        The probability *density* function at the bin location.
+
+    See Also
+    --------
+    Chapter 3 of "Applied Regression Analysis and Generalized Linear Models")pbdoc",
+
           py::arg("x"), py::arg("bins"), py::arg("bandwidth") = py::none());
 }
