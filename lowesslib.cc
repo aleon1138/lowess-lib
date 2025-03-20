@@ -111,22 +111,24 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
         throw std::invalid_argument("invalid bandwidth");
     }
 
-    bool ok = true; // needed to exit OMP block
+    // Calling python functions from within a thread is a bit of a mess.
+    // See: https://github.com/python/cpython/issues/111034
+    // See: https://stackoverflow.com/q/78200321
+
+    bool ok = true;
+    Py_BEGIN_ALLOW_THREADS  // Releases GIL,
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < m; i++) {
-# if PY_VERSION_HEX < 0x030C0000
-        // Starting in 3.12 you must obtain the GIL inside any threads calling
-        // any python function. The code below is actually buggy, it's just that
-        // 3.12 is more strict in catching the error. I could not figure out how
-        // to do this without causing a deadlock, so we'll just disable it for now.
-        // See: https://stackoverflow.com/q/78200321
-        ok &= (PyErr_CheckSignals() == 0);  // exit loop on CTRL-C
-# endif
+        if (i % 32 == 0) { // unintelligent optimization
+            py::gil_scoped_acquire gil;
+            ok &= (PyErr_CheckSignals() == 0);  // exit loop on CTRL-C
+        }
 
         if (ok) {
             pyi[i] = solve_intercept(px, py, pxi[i], h, n);
         }
     }
+    Py_END_ALLOW_THREADS  // Re-acquires GIL
 
     if (!ok) {
         throw py::error_already_set();
