@@ -5,6 +5,8 @@
 #include <omp.h>
 
 namespace py = pybind11;
+
+// Force arrays to be column-contiguous and cast to float
 typedef py::array_t<float, py::array::f_style | py::array::forcecast> array_t;
 
 float solve_intercept(const float *x, const float *y, float x0, float h, int n);
@@ -112,7 +114,15 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
     bool ok = true; // needed to exit OMP block
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < m; i++) {
-        ok &= (PyErr_CheckSignals() == 0);
+# if PY_VERSION_HEX < 0x030C0000
+        // Starting in 3.12 you must obtain the GIL inside any threads calling
+        // any python function. The code below is actually buggy, it's just that
+        // 3.12 is more strict in catching the error. I could not figure out how
+        // to do this without causing a deadlock, so we'll just disable it for now.
+        // See: https://stackoverflow.com/q/78200321
+        ok &= (PyErr_CheckSignals() == 0);  // exit look on CTRL-C
+# endif
+
         if (ok) {
             pyi[i] = solve_intercept(px, py, pxi[i], h, n);
         }
