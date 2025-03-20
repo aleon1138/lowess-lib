@@ -43,22 +43,60 @@ void verify(bool cond, const char*msg)
     }
 }
 
-py::array_t<float> smooth(array_t xi, array_t x, array_t y, std::optional<float> bandwidth)
+array_t generate_bins(array_t x, int bins)
+{
+    py::buffer_info info = x.request();
+    int n = info.size;
+
+    // Compute equally-spaced index values
+    bins = std::min(bins, n);
+    std::vector<int> idx(bins);
+    const float slope = float(n - 1) / float(bins + 1);
+    for (int i = 0; i < bins; ++i) {
+        idx[i] = std::round(float(i + 1) * slope);
+    }
+
+    // Copy and sort the input vector
+    float* ptr = static_cast<float*>(info.ptr);
+    std::vector<float> sorted_x(ptr, ptr + n);
+    std::sort(sorted_x.begin(), sorted_x.end());
+
+    // Select elements at computed indices
+    std::vector<float> out(bins);
+    for (int i = 0; i < bins; ++i) {
+        out[i] = sorted_x[idx[i]];
+    }
+    return array_t(out.size(), out.data());
+}
+
+std::tuple<array_t,array_t> smooth(py::object bins, array_t x, array_t y, std::optional<float> bandwidth)
 {
     verify(x.shape(0) == y.shape(0), "x and y are not of the same length");
     verify(x.shape(0) > 0, "x is empty");
-    verify(xi.ndim() == 1, "xi must be 1-dimensional");
     verify(x.ndim()  == 1, "x must be 1-dimensional");
     verify(y.ndim()  == 1, "y must be 1-dimensional");
 
-    py::array_t<float> yi = py::array_t<float>(xi.shape(0));
-    float *pyi = yi.mutable_data(0);
+    // Handle creation or conversion of `bin_array`.
+    array_t bin_array;
+    if (py::isinstance<py::int_>(bins)) {
+        bin_array = generate_bins(x, bins.cast<int>());
+    }
+    else {
+        bin_array = py::array::ensure(bins);
+        if (!bin_array) {
+            throw std::invalid_argument("Unsupported type: cannot be converted to a NumPy array");
+        }
+        verify(bin_array.ndim() == 1, "xi must be 1-dimensional");
+    }
 
-    const float *pxi = xi.data(0);
+    const float *pxi = bin_array.data(0);
     const float *px  = x.data(0);
     const float *py  = y.data(0);
-    int m = xi.shape(0);
-    int n = x.shape(0);
+    const int    m   = bin_array.shape(0);
+    const int    n   = x.shape(0);
+
+    py::array_t<float> yi = py::array_t<float>(m);
+    float *pyi = yi.mutable_data(0);
 
     float h;
     if (bandwidth) {
@@ -83,7 +121,7 @@ py::array_t<float> smooth(array_t xi, array_t x, array_t y, std::optional<float>
     if (!ok) {
         throw py::error_already_set();
     }
-    return yi;
+    return std::make_tuple(bin_array, yi);
 }
 
 py::array_t<float> histogram(array_t x, array_t bins, std::optional<float> bandwidth)
@@ -142,10 +180,14 @@ PYBIND11_MODULE(lowesslib, m)
 
     Returns
     -------
-    yi : (M,) ndarray
+    xi : ndarray
+        The interpolation point locations.
+    yi : ndarray
          Smoothed interpolated valued of `y` at `xi`)pbdoc",
 
           py::arg("xi"), py::arg("x"), py::arg("y"), py::arg("bandwidth") = py::none());
+
+    //-------------------------------------------------------------------------
 
     m.def("histogram", &histogram,
           R"pbdoc(histogram(x, bins, bandwidth=None)
