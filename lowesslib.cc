@@ -185,7 +185,7 @@ PYBIND11_MODULE(lowesslib, m)
     yi : ndarray
          Smoothed interpolated valued of `y` at `xi`)pbdoc",
 
-          py::arg("x"), py::arg("y"), py::arg("xi"), py::arg("bandwidth") = py::none());
+          py::arg("x"), py::arg("y"), py::arg("xi") = 100, py::arg("bandwidth") = py::none());
 
     //-------------------------------------------------------------------------
 
