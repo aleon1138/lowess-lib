@@ -73,10 +73,10 @@ array_t generate_bins(array_t x, int bins)
 
 std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::optional<float> bandwidth)
 {
-    verify(x.shape(0) == y.shape(0), "x and y are not of the same length");
-    verify(x.shape(0) > 0, "x is empty");
-    verify(x.ndim()  == 1, "x must be 1-dimensional");
-    verify(y.ndim()  == 1, "y must be 1-dimensional");
+    verify(x.shape(0) == y.shape(0), "input length mismatch");
+    verify(x.shape(0) > 0, "input is empty");
+    verify(x.ndim()  == 1, "`x` is not a vector");
+    verify(y.ndim()  == 1, "`y` is not a vector");
 
     // Handle creation or conversion of `bin_array`.
     array_t bin_array;
@@ -86,9 +86,9 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
     else {
         bin_array = py::array::ensure(bins);
         if (!bin_array) {
-            throw std::invalid_argument("Unsupported type: cannot be converted to a NumPy array");
+            throw std::invalid_argument("`bins` cannot be converted to ndarray");
         }
-        verify(bin_array.ndim() == 1, "xi must be 1-dimensional");
+        verify(bin_array.ndim() == 1, "`bins` is not a vector");
     }
 
     const float *pxi = bin_array.data(0);
@@ -172,7 +172,7 @@ PYBIND11_MODULE(lowesslib, m)
     py::options options;
     options.disable_function_signatures(); // Disable auto-generated
 
-    m.doc() = "LOWESS: Locally Weighted Scatterplot Smoothing";
+    m.doc() = "LOWESS: Locally Weighted Scatter plot Smoothing";
 
     m.def("smooth", &smooth,
           R"pbdoc(smooth(x, y, bins=100, bandwidth=None)
@@ -181,23 +181,24 @@ PYBIND11_MODULE(lowesslib, m)
 
     Parameters
     ----------
-    x : (N,) array_like
+    x : array_like, shape (N,)
         Independent variable.
-    y : (N,) array_like
-        Dependent or response variable.
+    y : array_like, shape (N,)
+        Dependent (response) variable.
     bins : int or sequence of scalars, optional
-        If `bins` is an int, it defines the number of quantiles in `x` to use
-        as a sequence. If `bins` is a sequence, it is taken as the location
-        of interpolation points along `x`.
+        If an integer, `bins` specifies the number of quantiles in `x` to use
+        as interpolation points. If a sequence, it is treated as the exact
+        locations of the interpolation points.
     bandwidth : float, optional
-        Kernel bandwidth for smoothing, this should be in the same units as `x`.
+        Kernel bandwidth for smoothing, in the same units as `x`.
+        The default is 1.41 times the interquartile range of `x`.
 
     Returns
     -------
     xi : ndarray
-        The interpolation point locations.
+        Interpolation point locations.
     yi : ndarray
-         Smoothed interpolated valued of `y` at `xi`)pbdoc",
+        Smoothed interpolated values of `y` at `xi`.)pbdoc",
 
           py::arg("x"), py::arg("y"), py::arg("bins") = 100, py::arg("bandwidth") = py::none());
 
