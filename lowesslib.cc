@@ -45,7 +45,7 @@ void verify(bool cond, const char*msg)
     }
 }
 
-array_t generate_bins(array_t x, int bins)
+array_t generate_bins(const array_t x, int bins)
 {
     py::buffer_info info = x.request();
     int n = info.size;
@@ -77,6 +77,10 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
     verify(x.shape(0) > 0, "input is empty");
     verify(x.ndim()  == 1, "`x` is not a vector");
     verify(y.ndim()  == 1, "`y` is not a vector");
+
+    // TOOD - we're sorting the `x` array twice, one for generating bins and
+    //        again for getting the bandwidth. We should sub-sample by 1/10
+    //        for large arrays and/or look at parallelized versions
 
     // Handle creation or conversion of `bin_array`.
     array_t bin_array;
