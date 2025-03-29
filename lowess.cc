@@ -10,14 +10,14 @@ __m256 _mm256_gauss_kernel_ps(__m256 u)
 {
     __m256 x = _mm256_mul_ps(_mm256_set1_ps(-0.5f), _mm256_mul_ps(u,u));
 
-    // This function will blow up if `x` is too small
+    // Clamp `x` to avoid numerical issues with large negative values
     x = _mm256_max_ps(x, _mm256_set1_ps(-30.0f));
 
     // Fast approximation for exp(x)
     // See: stackoverflow.com/q/47025373
-    __m256  a = _mm256_set1_ps (12102203.0f); /* (1 << 23) / log(2) */
-    __m256i b = _mm256_set1_epi32 (127 * (1 << 23) - 298765);
-    __m256i t = _mm256_add_epi32 (_mm256_cvtps_epi32 (_mm256_mul_ps(a, x)), b);
+    __m256  a = _mm256_set1_ps(12102203.1615614f); // (1 << 23) / log(2)
+    __m256i b = _mm256_set1_epi32((127 << 23) - 298765);
+    __m256i t = _mm256_add_epi32(_mm256_cvtps_epi32(_mm256_mul_ps(a, x)), b);
     return _mm256_castsi256_ps(t);
 }
 
