@@ -49,36 +49,29 @@ array_t generate_bins(const array_t x, int bins)
 {
     py::buffer_info info = x.request();
     int n = info.size;
+    bins  = std::min(bins, n);
 
-    // Compute equally-spaced index values
-    bins = std::min(bins, n);
-    std::vector<int> idx(bins);
-    const float slope = float(n - 1) / float(bins + 1);
-    for (int i = 0; i < bins; ++i) {
-        idx[i] = std::round(float(i + 1) * slope);
-    }
-
-    // Copy and sort the input vector
     float* ptr = static_cast<float*>(info.ptr);
     std::vector<float> sorted_x(ptr, ptr + n);
     std::sort(sorted_x.begin(), sorted_x.end());
 
-    // Select elements at computed indices
     std::vector<float> out(bins);
+    const float slope = float(n - 1) / float(bins + 1);
     for (int i = 0; i < bins; ++i) {
-        out[i] = sorted_x[idx[i]];
+        out[i] = sorted_x[std::round(float(i + 1) * slope)];
     }
     return array_t(out.size(), out.data());
 }
 
-//
-// TODO - we're sorting the `x` array twice, one for generating bins and again
-//        for calculating the bandwidth. We should sub-sample by 1/10 for large
-//        arrays and/or look at parallelized versions
-//
+/*
+ * Handle creation or conversion of `bin_array`.
+ *
+ * TODO - we're sorting the `x` array twice, one for generating bins and again
+ *        for calculating the bandwidth. We should sub-sample by 1/10 for large
+ *        arrays and/or look at parallelized versions
+ */
 array_t process_bins_array(const array_t x, py::object bins)
 {
-    // Handle creation or conversion of `bin_array`.
     array_t bin_array;
     if (py::isinstance<py::int_>(bins)) {
         bin_array = generate_bins(x, bins.cast<int>());
@@ -121,10 +114,11 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
         throw std::invalid_argument("invalid bandwidth");
     }
 
-    // Calling python functions from within a thread is a bit of a mess.
-    // See: https://github.com/python/cpython/issues/111034
-    // See: https://stackoverflow.com/q/78200321
-
+    /*
+     * Calling python functions from within a thread is a bit of a mess.
+     * See: https://github.com/python/cpython/issues/111034
+     * See: https://stackoverflow.com/q/78200321
+     */
     bool ok = true;
     Py_BEGIN_ALLOW_THREADS  // Releases GIL,
     #pragma omp parallel for schedule(static)
