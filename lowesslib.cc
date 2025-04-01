@@ -71,17 +71,13 @@ array_t generate_bins(const array_t x, int bins)
     return array_t(out.size(), out.data());
 }
 
-std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::optional<float> bandwidth)
+//
+// TODO - we're sorting the `x` array twice, one for generating bins and again
+//        for calculating the bandwidth. We should sub-sample by 1/10 for large
+//        arrays and/or look at parallelized versions
+//
+array_t process_bins_array(const array_t x, py::object bins)
 {
-    verify(x.shape(0) == y.shape(0), "input length mismatch");
-    verify(x.shape(0) > 0, "input is empty");
-    verify(x.ndim()  == 1, "`x` is not a vector");
-    verify(y.ndim()  == 1, "`y` is not a vector");
-
-    // TOOD - we're sorting the `x` array twice, one for generating bins and
-    //        again for getting the bandwidth. We should sub-sample by 1/10
-    //        for large arrays and/or look at parallelized versions
-
     // Handle creation or conversion of `bin_array`.
     array_t bin_array;
     if (py::isinstance<py::int_>(bins)) {
@@ -94,7 +90,17 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
         }
         verify(bin_array.ndim() == 1, "`bins` is not a vector");
     }
+    return bin_array;
+}
 
+std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::optional<float> bandwidth)
+{
+    verify(x.shape(0) == y.shape(0), "input length mismatch");
+    verify(x.shape(0) > 0, "input is empty");
+    verify(x.ndim()  == 1, "`x` is not a vector");
+    verify(y.ndim()  == 1, "`y` is not a vector");
+
+    array_t bin_array = process_bins_array(x, bins);
     const float *pxi = bin_array.data(0);
     const float *px  = x.data(0);
     const float *py  = y.data(0);
@@ -140,17 +146,19 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
     return std::make_tuple(bin_array, yi);
 }
 
-py::array_t<float> histogram(array_t x, array_t bins, std::optional<float> bandwidth)
+std::tuple<array_t,array_t> histogram(array_t x, py::object bins, std::optional<float> bandwidth)
 {
     verify(x.ndim() == 1 or x.shape(1)==1, "x must be 1-dimensional");
 
+    // TODO - create equally-space bins for histogram
+    array_t bin_array = process_bins_array(x, bins);
     int n = x.shape(0);
-    int m = bins.shape(0);
+    int m = bin_array.shape(0);
     py::array_t<float> y = py::array_t<float>(m);
 
     float       *p_y = y.mutable_data(0);
     const float *p_x = x.data(0);
-    const float *p_b = bins.data(0);
+    const float *p_b = bin_array.data(0);
 
     float h;
     if (bandwidth) {
@@ -168,7 +176,7 @@ py::array_t<float> histogram(array_t x, array_t bins, std::optional<float> bandw
     for (int i = 0; i < m; ++i) {
         p_y[i] = histogram_kernel(p_x, p_b[i], h, n);
     }
-    return y;
+    return std::make_tuple(bin_array, y);
 }
 
 PYBIND11_MODULE(lowesslib, m)
@@ -215,11 +223,13 @@ PYBIND11_MODULE(lowesslib, m)
 
     Parameters
     ----------
-    x : (M,) array_like
+    x : array_like, shape (N,)
         Input data. The histogram is computed over the entire array.
-    bins : (N,) array_like
-        A monotonically increasing array of bin centre locations, allowing for
-        non-uniform bind widths.
+    bins : int or sequence of scalars, optional
+        If an integer, `bins` specifies the number of bins to use. If a sequence,
+        a monotonically increasing array of bin centre locations.
+    bandwidth : float, optional
+        Kernel bandwidth for smoothing, in the same units as `x`.
 
     Returns
     -------
@@ -232,5 +242,5 @@ PYBIND11_MODULE(lowesslib, m)
     --------
     Chapter 3 of "Applied Regression Analysis and Generalized Linear Models")pbdoc",
 
-          py::arg("x"), py::arg("bins"), py::arg("bandwidth") = py::none());
+          py::arg("x"), py::arg("bins") = 100, py::arg("bandwidth") = py::none());
 }
