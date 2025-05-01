@@ -49,7 +49,9 @@ lowesslib:
 For the `smooth` example above we get the following results:
 
 ```python
+figure(figsize=(5,3.5))
 plot(x, y, '.', ms=1)
 plot(*lowesslib.smooth(x, y, xi, 0.4), color='r')
+tight_layout()
 ```
 ![figure_1](img/Figure_1.png)
