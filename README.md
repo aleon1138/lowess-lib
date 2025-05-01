@@ -27,15 +27,15 @@ import numpy as np
 import statsmodels.api as sm
 import lowesslib
 
-x = np.random.uniform(low = -2*np.pi, high = 2*np.pi, size=10_000)
-y = np.sin(x) + np.random.normal(size=len(x))
+x  = np.random.uniform(low = -2*np.pi, high = 2*np.pi, size=10_000)
+y  = np.sin(x) + np.random.normal(size=len(x))
 xi = np.linspace(-2*np.pi, 2*np.pi, 100)
 
 %timeit sm.nonparametric.lowess(endog=y, exog=x, xvals=xi)
-%timeit lowesslib.smooth(x, y, xi, 1.0)
+%timeit lowesslib.smooth(x, y, xi, bandwidth=0.4)
 ```
 
-Results are quite dramatic: over 20,000 times faster than statsmodels.
+Results are quite dramatic, over 20,000 times faster than `statsmodels`.
 
 ```
 statsmodels:
@@ -53,7 +53,7 @@ For the `smooth` example above we get the following results:
 ```python
 figure(figsize=(5,3.5))
 plot(x, y, '.', ms=1)
-plot(*lowesslib.smooth(x, y, xi, 0.4), color='r')
+plot(*lowesslib.smooth(x, y, xi, bandwidth=0.4), color='r')
 tight_layout()
 ```
 ![figure_1](img/Figure_1.png)
@@ -64,9 +64,9 @@ tight_layout()
 We can use `histogram` to smooth out density histograms:
 
 ```python
-x = np.random.rayleigh(10, size=10_000)
+x = np.random.rayleigh(scale=10, size=10_000)
 figure(figsize=(5,3.5))
-hist(x, 100, density=True, alpha=.6);
+hist(x, bins=100, density=True, alpha=.6);
 plot(*lowesslib.histogram(x, bandwidth=1.5), color='r')
 tight_layout()
 ```
