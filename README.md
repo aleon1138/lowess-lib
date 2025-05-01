@@ -46,6 +46,8 @@ lowesslib:
 ```
 ## Examples
 
+### Kernel Smoothing
+
 For the `smooth` example above we get the following results:
 
 ```python
@@ -55,3 +57,17 @@ plot(*lowesslib.smooth(x, y, xi, 0.4), color='r')
 tight_layout()
 ```
 ![figure_1](img/Figure_1.png)
+
+
+### Kernel Density Estimation
+
+We can use `histogram` to smooth out density histograms:
+
+```python
+x = np.random.rayleigh(10, size=10_000)
+figure(figsize=(5,3.5))
+hist(x, 100, density=True, alpha=.6);
+plot(*lowesslib.histogram(x, bandwidth=1.5), color='r')
+tight_layout()
+```
+![figure_2](img/Figure_2.png)

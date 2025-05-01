@@ -65,20 +65,30 @@ array_t verify_1d(array_t x, const char *label)
 }
 
 
-array_t generate_bins(const array_t x, int bins)
+array_t generate_bins(const float *x, int n, int num_bins)
 {
-    py::buffer_info info = x.request();
-    int n = info.size;
-    bins  = std::min(bins, n);
-
-    float* ptr = static_cast<float*>(info.ptr);
-    std::vector<float> sorted_x(ptr, ptr + n);
+    std::vector<float> sorted_x(x, x + n);
     std::sort(sorted_x.begin(), sorted_x.end());
 
-    std::vector<float> out(bins);
-    const float slope = float(n - 1) / float(bins + 1);
-    for (int i = 0; i < bins; ++i) {
+    std::vector<float> out(num_bins);
+    const float slope = float(n - 1) / float(num_bins + 1);
+    for (int i = 0; i < num_bins; ++i) {
         out[i] = sorted_x[std::round(float(i + 1) * slope)];
+    }
+    return array_t(out.size(), out.data());
+}
+
+
+array_t generate_linear_bins(const float *x, int n, int num_bins)
+{
+    std::pair minmax = std::minmax_element(x, x+n);
+    float y0 = *minmax.first;
+    float y1 = *minmax.second;
+
+    std::vector<float> out(num_bins);
+    const float slope = (y1 - y0) / float(num_bins - 1);
+    for (int i = 0; i < num_bins; ++i) {
+        out[i] = y0 + slope * i;
     }
     return array_t(out.size(), out.data());
 }
@@ -91,11 +101,14 @@ array_t generate_bins(const array_t x, int bins)
  *        for calculating the bandwidth. We should sub-sample by 1/10 for large
  *        arrays and/or look at parallelized versions
  */
-array_t process_bins_array(const array_t x, py::object bins)
+array_t process_bins_array(const array_t x, py::object bins, bool linear=false)
 {
     array_t bin_array;
     if (py::isinstance<py::int_>(bins)) {
-        bin_array = generate_bins(x, bins.cast<int>());
+        const float *p = x.data(0);
+        int n = x.shape(0);
+        int m = std::min(bins.cast<int>(), n);
+        bin_array = linear? generate_linear_bins(p, n, m) : generate_bins(p, n, m);
     }
     else {
         bin_array = py::array::ensure(bins);
@@ -108,7 +121,8 @@ array_t process_bins_array(const array_t x, py::object bins)
 }
 
 
-std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::optional<float> bandwidth)
+std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
+                                   std::optional<float> bandwidth)
 {
     x = verify_1d(x, "x");
     y = verify_1d(y, "y");
@@ -162,12 +176,13 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
 }
 
 
-std::tuple<array_t,array_t> histogram(array_t x, py::object bins, std::optional<float> bandwidth)
+std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
+                                      std::optional<float> bandwidth)
 {
     x = verify_1d(x, "x");
 
     // TODO - create equally-space bins for histogram
-    array_t bin_array = process_bins_array(x, bins);
+    array_t bin_array = process_bins_array(x, bins, true);
     int n = x.shape(0);
     int m = bin_array.shape(0);
     py::array_t<float> y = py::array_t<float>(m);
@@ -199,7 +214,8 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins, std::optional<
 }
 
 
-std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object bins, std::optional<float> bandwidth)
+std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object bins,
+                                     std::optional<float> bandwidth)
 {
     x = verify_1d(x, "x");
     y = verify_1d(y, "y");
