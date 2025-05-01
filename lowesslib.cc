@@ -11,6 +11,7 @@ typedef py::array_t<float, py::array::f_style | py::array::forcecast> array_t;
 
 float solve_intercept(const float *x, const float *y, float x0, float h, int n);
 float histogram_kernel(const float *x, float x0, float h, int n);
+float interact_kernel(const float *x, const float *y, const float *z, float z0, float h, int n);
 
 /*
  *  Approximate interquartile range via gradient descent. This idea is cool
@@ -30,6 +31,7 @@ float interquartile_range_approx(const array_t &x)
     return q75 - q25;
 }
 
+
 float interquartile_range(const array_t &x)
 {
     const int n = x.shape(0);
@@ -38,12 +40,30 @@ float interquartile_range(const array_t &x)
     return x_sort[n*3/4] - x_sort[n/4];
 }
 
-void verify(bool cond, const char*msg)
+
+void verify(bool cond, const char *msg)
 {
     if (cond == false) {
         throw std::invalid_argument(msg);
     }
 }
+
+
+array_t verify_1d(array_t x, const char *label)
+{
+    char msg[80];
+    x = x.squeeze();
+    if (x.shape(0) == 0) {
+        sprintf(msg, "`%s` is empty", label);
+        throw std::invalid_argument(msg);
+    }
+    if (x.ndim() != 1) {
+        sprintf(msg, "`%s` is not one-dimensional", label);
+        throw std::invalid_argument(msg);
+    }
+    return x;
+}
+
 
 array_t generate_bins(const array_t x, int bins)
 {
@@ -62,6 +82,7 @@ array_t generate_bins(const array_t x, int bins)
     }
     return array_t(out.size(), out.data());
 }
+
 
 /*
  * Handle creation or conversion of `bin_array`.
@@ -86,12 +107,12 @@ array_t process_bins_array(const array_t x, py::object bins)
     return bin_array;
 }
 
+
 std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::optional<float> bandwidth)
 {
+    x = verify_1d(x, "x");
+    y = verify_1d(y, "y");
     verify(x.shape(0) == y.shape(0), "input length mismatch");
-    verify(x.shape(0) > 0, "input is empty");
-    verify(x.ndim()  == 1, "`x` is not a vector");
-    verify(y.ndim()  == 1, "`y` is not a vector");
 
     array_t bin_array = process_bins_array(x, bins);
     const float *pxi = bin_array.data(0);
@@ -120,7 +141,7 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
      * See: https://stackoverflow.com/q/78200321
      */
     bool ok = true;
-    Py_BEGIN_ALLOW_THREADS  // Releases GIL,
+    Py_BEGIN_ALLOW_THREADS  // Releases GIL
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < m; i++) {
         if (i % 32 == 0) { // unintelligent optimization
@@ -140,9 +161,10 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins, std::o
     return std::make_tuple(bin_array, yi);
 }
 
+
 std::tuple<array_t,array_t> histogram(array_t x, py::object bins, std::optional<float> bandwidth)
 {
-    verify(x.ndim() == 1 or x.shape(1)==1, "x must be 1-dimensional");
+    x = verify_1d(x, "x");
 
     // TODO - create equally-space bins for histogram
     array_t bin_array = process_bins_array(x, bins);
@@ -166,12 +188,57 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins, std::optional<
         throw std::invalid_argument("invalid bandwidth");
     }
 
+    Py_BEGIN_ALLOW_THREADS  // Releases GIL
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < m; ++i) {
         p_y[i] = histogram_kernel(p_x, p_b[i], h, n);
     }
+    Py_END_ALLOW_THREADS  // Re-acquires GIL
+
     return std::make_tuple(bin_array, y);
 }
+
+
+std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object bins, std::optional<float> bandwidth)
+{
+    x = verify_1d(x, "x");
+    y = verify_1d(y, "y");
+    z = verify_1d(z, "z");
+    verify(x.shape(0) == y.shape(0), "input length mismatch");
+    verify(x.shape(0) == z.shape(0), "input length mismatch");
+
+    array_t zi = process_bins_array(z, bins);
+    py::array_t<float> bi = py::array_t<float>(zi.shape(0));
+
+    float h;
+    if (bandwidth) {
+        h = bandwidth.value();
+    }
+    else {
+        h = interquartile_range(z) * 0.2f; // not sure what value to use here
+    }
+    if (h <= 0) {
+        throw std::invalid_argument("invalid bandwidth");
+    }
+
+    int n = x.shape(0);
+    int m = zi.shape(0);
+    const float *p_x  = x.data(0);
+    const float *p_y  = y.data(0);
+    const float *p_z  = z.data(0);
+    const float *p_zi = zi.data(0);
+    float *p_bi = bi.mutable_data(0);
+
+    Py_BEGIN_ALLOW_THREADS  // Releases GIL
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < m; ++i) {
+        p_bi[i] = interact_kernel(p_x, p_y, p_z, p_zi[i], h, n);
+    }
+    Py_END_ALLOW_THREADS  // Re-acquires GIL
+
+    return std::make_tuple(zi, bi);
+}
+
 
 PYBIND11_MODULE(lowesslib, m)
 {
@@ -237,4 +304,10 @@ PYBIND11_MODULE(lowesslib, m)
     Chapter 3 of "Applied Regression Analysis and Generalized Linear Models")pbdoc",
 
           py::arg("x"), py::arg("bins") = 100, py::arg("bandwidth") = py::none());
+
+    //-------------------------------------------------------------------------
+
+    m.def("interact", &interact,
+          R"pbdoc(interact(x, y, z, bins=100, bandwidth=None))pbdoc",
+          py::arg("x"), py::arg("y"), py::arg("z"), py::arg("bins") = 100, py::arg("bandwidth") = py::none());
 }

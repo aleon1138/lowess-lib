@@ -2,10 +2,10 @@
 #include <xmmintrin.h>
 #include <cmath>
 
-///
-///  Gaussian kernel:
-///    y = exp(-0.5*u*u)
-///
+/*
+ *  Gaussian kernel:
+ *    y = exp(-0.5*u*u)
+ */
 __m256 _mm256_gauss_kernel_ps(__m256 u)
 {
     __m256 x = _mm256_mul_ps(_mm256_set1_ps(-0.5f), _mm256_mul_ps(u,u));
@@ -21,10 +21,11 @@ __m256 _mm256_gauss_kernel_ps(__m256 u)
     return _mm256_castsi256_ps(t);
 }
 
-///
-///  Horizontal sum
-///  See: stackoverflow.com/q/6996764
-///
+
+/*
+ *  Horizontal sum
+ *  See: stackoverflow.com/q/6996764
+ */
 float hsum(__m256 v)
 {
     __m128 lo   = _mm256_castps256_ps128(v);
@@ -43,9 +44,10 @@ struct coeff_t {
     float xy1;
 };
 
-//
-//  Perform LOWESS with SIMD extensions
-//
+
+/*
+ *  Perform LOWESS with SIMD extensions
+ */
 coeff_t solve_intercept_simd(const float *x_, const float *y_, float x0_, float h, int n)
 {
     __m256 x0 = _mm256_set1_ps(x0_);
@@ -121,6 +123,7 @@ float solve_intercept(const float *x, const float *y, float x0, float h, int n)
     return denom > 0? numer / denom : 0;
 }
 
+
 float histogram_kernel(const float *x, float x0, float h, int n)
 {
     int n0 = n - (n%8);
@@ -134,4 +137,53 @@ float histogram_kernel(const float *x, float x0, float h, int n)
 
     const float K0 = 0.3989422804014327f; // 1/sqrt(2*pi)
     return K0 * s / (n * h);
+}
+
+
+struct covar_t {
+    float xx;
+    float xy;
+};
+
+
+covar_t interact_kernel_simd(const float *x_, const float *y_, const float *z_,
+                             float z0_, float h, int n)
+{
+    __m256 xx = _mm256_setzero_ps();
+    __m256 xy = _mm256_setzero_ps();
+    __m256 k  = _mm256_set1_ps(1.0f / h);
+    __m256 z0 = _mm256_set1_ps(z0_);
+
+    for (int i = 0; i < n; i += 8) {
+        __m256 z = _mm256_loadu_ps(z_+i);
+        __m256 u = _mm256_mul_ps(_mm256_sub_ps(z0, z), k);
+        __m256 w = _mm256_gauss_kernel_ps(u);
+        __m256 xw = _mm256_mul_ps(_mm256_loadu_ps(x_+i), w);
+        __m256 yw = _mm256_mul_ps(_mm256_loadu_ps(y_+i), w);
+        xx = _mm256_fmadd_ps(xw, xw, xx);
+        xy = _mm256_fmadd_ps(xw, yw, xy);
+    }
+
+    // *INDENT-OFF*
+    return covar_t {
+        xx : hsum(xx),
+        xy : hsum(xy),
+    };
+    // *INDENT-ON*
+}
+
+
+float interact_kernel(const float *x, const float *y, const float *z,
+                      float z0, float h, int n)
+{
+    int n0 = n - (n%8);
+    covar_t o = interact_kernel_simd(x, y, z, z0, h, n);
+
+    for (int i = n0; i < n; ++i) {
+        float u = (z0 - z[i]) / h;
+        float w = expf(-0.5 * u * u);
+        o.xx += x[i] * x[i] * w * w;
+        o.xy += x[i] * y[i] * w * w;
+    }
+    return o.xx > 0.0? o.xy / o.xx : 0.0;
 }
