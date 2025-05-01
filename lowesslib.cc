@@ -181,7 +181,6 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
 {
     x = verify_1d(x, "x");
 
-    // TODO - create equally-space bins for histogram
     array_t bin_array = process_bins_array(x, bins, true);
     int n = x.shape(0);
     int m = bin_array.shape(0);
