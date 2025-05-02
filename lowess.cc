@@ -177,7 +177,7 @@ float interact_kernel(const float *x, const float *y, const float *z,
                       float z0, float h, int n)
 {
     int n0 = n - (n%8);
-    covar_t o = interact_kernel_simd(x, y, z, z0, h, n);
+    covar_t o = interact_kernel_simd(x, y, z, z0, h, n0);
 
     for (int i = n0; i < n; ++i) {
         float u = (z0 - z[i]) / h;

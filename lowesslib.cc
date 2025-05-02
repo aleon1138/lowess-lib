@@ -111,7 +111,7 @@ array_t process_bins_array(const array_t x, py::object bins, bool linear=false)
         bin_array = linear? generate_linear_bins(p, n, m) : generate_bins(p, n, m);
     }
     else {
-        bin_array = py::array::ensure(bins);
+        bin_array = py::array::ensure(bins).squeeze();
         if (!bin_array) {
             throw std::invalid_argument("`bins` cannot be converted to ndarray");
         }
@@ -223,7 +223,8 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
     verify(x.shape(0) == z.shape(0), "input length mismatch");
 
     array_t zi = process_bins_array(z, bins);
-    py::array_t<float> bi = py::array_t<float>(zi.shape(0));
+    const int n = x.shape(0);
+    const int m = zi.shape(0);
 
     float h;
     if (bandwidth) {
@@ -236,12 +237,12 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
         throw std::invalid_argument("invalid bandwidth");
     }
 
-    int n = x.shape(0);
-    int m = zi.shape(0);
     const float *p_x  = x.data(0);
     const float *p_y  = y.data(0);
     const float *p_z  = z.data(0);
     const float *p_zi = zi.data(0);
+
+    py::array_t<float> bi = py::array_t<float>(m);
     float *p_bi = bi.mutable_data(0);
 
     Py_BEGIN_ALLOW_THREADS  // Releases GIL
