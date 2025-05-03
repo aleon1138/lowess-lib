@@ -266,54 +266,59 @@ PYBIND11_MODULE(lowesslib, m)
     m.def("smooth", &smooth,
           R"pbdoc(smooth(x, y, bins=100, bandwidth=None)
 
-    Perform LOWESS smoothing on one-dimensional data.
+    Perform LOWESS (Locally Weighted Scatterplot Smoothing) on one-dimensional data.
 
     Parameters
     ----------
     x : array_like, shape (N,)
         Independent variable.
+
     y : array_like, shape (N,)
         Dependent (response) variable.
+
     bins : int or sequence of scalars, optional
-        If an integer, `bins` specifies the number of quantiles in `x` to use
-        as interpolation points. If a sequence, it is treated as the exact
-        locations of the interpolation points.
+        If an integer, specifies the number of quantiles in `x` to use as
+        interpolation points. If a sequence, it is treated as the exact
+        interpolation point locations.
+
     bandwidth : float, optional
         Kernel bandwidth for smoothing, in the same units as `x`.
-        The default is 1.41 times the interquartile range of `x`.
+        Defaults to 1.41 times the interquartile range (IQR) of `x`.
 
     Returns
     -------
     xi : ndarray
-        Interpolation point locations.
+        Interpolation point locations in `x`.
+
     yi : ndarray
-        Smoothed interpolated values of `y` at `xi`.)pbdoc",
+        Smoothed, interpolated values of `y` at `xi`.)pbdoc",
 
           py::arg("x"), py::arg("y"), py::arg("bins") = 100, py::arg("bandwidth") = py::none());
 
     //-------------------------------------------------------------------------
 
     m.def("histogram", &histogram,
-          R"pbdoc(histogram(x, bins, bandwidth=None)
-
-    Compute the histogram of a dataset via kernel density estimation.
+          R"pbdoc(Estimate the histogram of a dataset using kernel density estimation.
 
     Parameters
     ----------
     x : array_like, shape (N,)
         Input data. The histogram is computed over the entire array.
-    bins : int or sequence of scalars, optional
-        If an integer, `bins` specifies the number of bins to use. If a sequence,
-        a monotonically increasing array of bin centre locations.
+
+    bins : int or sequence of scalars
+        If an integer, specifies the number of bins to use. If a sequence, it
+        should be a monotonically increasing array of bin center locations.
+
     bandwidth : float, optional
         Kernel bandwidth for smoothing, in the same units as `x`.
 
     Returns
     -------
     bins : ndarray
-        The bins centre locations.
+        Bin center locations.
+
     density : ndarray
-        The probability *density* function at the bin location.
+        Estimated probability *density* function values at the bin locations.
 
     See Also
     --------
@@ -324,6 +329,36 @@ PYBIND11_MODULE(lowesslib, m)
     //-------------------------------------------------------------------------
 
     m.def("interact", &interact,
-          R"pbdoc(interact(x, y, z, bins=100, bandwidth=None))pbdoc",
+          R"pbdoc(interact(x, y, z, bins=100, bandwidth=None)
+
+    Identify the functional form of `z` in the interaction model: `y = x * f(z)`
+
+    Parameters
+    ----------
+    x : array_like, shape (N,)
+        Independent variable.
+
+    y : array_like, shape (N,)
+        Dependent variable, assumed to be a noisy function of the interaction
+        between `x` and `z`.
+
+    z : array_like, shape (N,)
+        Nonlinear interaction term.
+
+    bins : int or sequence of scalars, optional
+        If an integer, specifies the number of quantiles in `z` to use as
+        interpolation points. If a sequence, it is treated as the exact
+        interpolation point locations.
+
+    bandwidth : float, optional
+        Kernel bandwidth for smoothing, in the same units as `z`.
+
+    Returns
+    -------
+    zi : ndarray
+        Interpolation point locations in `z`.
+
+    f(zi) : ndarray
+        Estimated functional form of `f(z)` in the model `y = x * f(z)`)pbdoc",
           py::arg("x"), py::arg("y"), py::arg("z"), py::arg("bins") = 100, py::arg("bandwidth") = py::none());
 }
