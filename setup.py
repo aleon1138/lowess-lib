@@ -1,10 +1,9 @@
-from distutils.core import setup, Extension
+from setuptools import setup, Extension
 import pybind11
-import sys
 
 module = Extension(
     "lowesslib",
-    extra_compile_args=["-fopenmp", "-march=native", "-std=c++17"],
+    extra_compile_args=["-O3", "-fopenmp", "-march=native", "-std=c++17"],
     extra_link_args=["-fopenmp"],
     include_dirs=[pybind11.get_include()],
     sources=["lowess.cc", "lowesslib.cc"],
@@ -12,8 +11,19 @@ module = Extension(
 
 setup(
     name="lowesslib",
-    version="0.1",
+    version="0.1.0",
     author="Arnaldo Leon",
+    author_email="amleon@alum.mit.edu",
     description="Utilities for Locally Weighted Scatterplot Smoothing",
+    long_description=open("README.md").read(),
+    long_description_context_type="text/markdown",
     ext_modules=[module],
+    python_requires=">=3.7",
+    install_requires=[
+        "pybind11>=2.6",
+        "numpy>=1.18",
+    ],
+    project_urls={
+        "Source": "https://github.com/aldon1138/lowess-lib",
+    },
 )
