@@ -155,19 +155,20 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
      * See: https://stackoverflow.com/q/78200321
      */
     bool ok = true;
-    Py_BEGIN_ALLOW_THREADS  // Releases GIL
-    #pragma omp parallel for schedule(static)
-    for (int i = 0; i < m; i++) {
-        if (i % 32 == 0) { // unintelligent optimization
-            py::gil_scoped_acquire gil;
-            ok &= (PyErr_CheckSignals() == 0);  // exit loop on CTRL-C
-        }
+    {
+        py::gil_scoped_release gil_r;
+        #pragma omp parallel for schedule(static)
+        for (int i = 0; i < m; i++) {
+            if (i % 32 == 0) { // unintelligent optimization
+                py::gil_scoped_acquire gil;
+                ok &= (PyErr_CheckSignals() == 0);  // exit loop on CTRL-C
+            }
 
-        if (ok) {
-            pyi[i] = solve_intercept(px, py, pxi[i], h, n);
+            if (ok) {
+                pyi[i] = solve_intercept(px, py, pxi[i], h, n);
+            }
         }
     }
-    Py_END_ALLOW_THREADS  // Re-acquires GIL
 
     if (!ok) {
         throw py::error_already_set();
@@ -197,18 +198,34 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
     else {
         float A = interquartile_range(x) / 1.349f;  // Eq (3.3)
         h = 0.9f * A / sqrtf(m);                    // Eq (3.2)
+        if (h == 0) {
+            auto mm = std::minmax_element(x.data(), x.data()+n);
+            h = (mm.second - mm.first) * 0.1; // desperate guess
+        }
     }
     if (h <= 0) {
         throw std::invalid_argument("invalid bandwidth");
     }
 
-    Py_BEGIN_ALLOW_THREADS  // Releases GIL
-    #pragma omp parallel for schedule(static)
-    for (int i = 0; i < m; ++i) {
-        p_y[i] = histogram_kernel(p_x, p_b[i], h, n);
-    }
-    Py_END_ALLOW_THREADS  // Re-acquires GIL
+    bool ok = true;
+    {
+        py::gil_scoped_release gil_r;
+        #pragma omp parallel for schedule(static)
+        for (int i = 0; i < m; ++i) {
+            if (i % 32 == 0) { // unintelligent optimization
+                py::gil_scoped_acquire gil;
+                ok &= (PyErr_CheckSignals() == 0);  // exit loop on CTRL-C
+            }
 
+            if (ok) {
+                p_y[i] = histogram_kernel(p_x, p_b[i], h, n);
+            }
+        }
+    }
+
+    if (!ok) {
+        throw py::error_already_set();
+    }
     return std::make_tuple(bin_array, y);
 }
 
