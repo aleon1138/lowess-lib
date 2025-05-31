@@ -199,8 +199,8 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
         float A = interquartile_range(x) / 1.349f;  // Eq (3.3)
         h = 0.9f * A / sqrtf(m);                    // Eq (3.2)
         if (h == 0) {
-            auto mm = std::minmax_element(x.data(), x.data()+n);
-            h = (mm.second - mm.first) * 0.1; // desperate guess
+            auto [min, max] = std::minmax_element(x.data(), x.data()+x.size());
+            h = (*max - *min) * 0.1; // desperate guess
         }
     }
     if (h <= 0) {
