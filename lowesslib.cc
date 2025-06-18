@@ -13,24 +13,6 @@ float solve_intercept(const float *x, const float *y, float x0, float h, int n);
 float histogram_kernel(const float *x, float x0, float h, int n);
 float interact_kernel(const float *x, const float *y, const float *z, float z0, float h, int n);
 
-/*
- *  Approximate interquartile range via gradient descent. This idea is cool
- *  but it's not working very reliably. Still needs some work.
- */
-float interquartile_range_approx(const array_t &x)
-{
-    const float *px  = x.data(0);
-    int n = x.shape(0);
-
-    float q25(0), q75(0);
-    float w = 1.0f/float(n);
-    for (int i = 0; i < n; ++i) {
-        q25 += w * ((q25 > px[i])? -0.75f : 0.25f);
-        q75 += w * ((q75 > px[i])? -0.25f : 0.75f);
-    }
-    return q75 - q25;
-}
-
 
 float interquartile_range(const array_t &x)
 {
