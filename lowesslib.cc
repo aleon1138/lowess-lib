@@ -34,8 +34,27 @@ float interquartile_range_approx(const array_t &x)
 
 float interquartile_range(const array_t &x)
 {
-    const int n = x.shape(0);
-    std::vector<float> x_sort(x.data(0), x.data(0) + n);
+    if (x.strides(0) != x.itemsize()) {
+        throw std::runtime_error("input is not contiguous");
+    }
+
+    /*
+     * This is a bottleneck for very large arrays, so we sub-sample. Another
+     * possibility would be to use multiple threads, but this is overkill.
+     */
+    const size_t MAX_SIZE = 500000;
+    const size_t stride   = std::max(1ul, x.shape(0) / MAX_SIZE);
+
+    std::vector<float> x_sort;
+    x_sort.reserve((x.shape(0)+stride-1) / stride);
+
+    const float *start = x.data();
+    const float *end   = x.data() + x.shape(0);
+    for (const float *p = start; p < end; p += stride) {
+        x_sort.push_back(*p);
+    }
+
+    const int n = x_sort.size();
     std::sort(x_sort.begin(), x_sort.end());
     return x_sort[n*3/4] - x_sort[n/4];
 }
