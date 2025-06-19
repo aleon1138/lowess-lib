@@ -14,30 +14,31 @@ float histogram_kernel(const float *x, float x0, float h, int n);
 float interact_kernel(const float *x, const float *y, const float *z, float z0, float h, int n);
 
 
+/*
+ * Sorting can be a major bottleneck for very large arrays. So the simplest
+ * approach is to just sub-sample the data and sort the reduced set.
+ */
+std::vector<float> subsample_sort(const float *x, size_t n)
+{
+    const size_t MAX_SIZE = 100000;
+    const size_t stride   = std::max(1ul, n / MAX_SIZE);
+
+    std::vector<float> y;
+    y.reserve((n+stride-1) / stride);
+
+    const float *end = x+n;
+    for (const float *p = x; p < end; p += stride) {
+        y.push_back(*p);
+    }
+    std::sort(y.begin(), y.end());
+    return y;
+}
+
+
 float interquartile_range(const array_t &x)
 {
-    if (x.strides(0) != x.itemsize()) {
-        throw std::runtime_error("input is not contiguous");
-    }
-
-    /*
-     * This is a bottleneck for very large arrays, so we sub-sample. Another
-     * possibility would be to use multiple threads, but this is overkill.
-     */
-    const size_t MAX_SIZE = 500000;
-    const size_t stride   = std::max(1ul, x.shape(0) / MAX_SIZE);
-
-    std::vector<float> x_sort;
-    x_sort.reserve((x.shape(0)+stride-1) / stride);
-
-    const float *start = x.data();
-    const float *end   = x.data() + x.shape(0);
-    for (const float *p = start; p < end; p += stride) {
-        x_sort.push_back(*p);
-    }
-
+    std::vector<float> x_sort = subsample_sort(x.data(), x.size());
     const int n = x_sort.size();
-    std::sort(x_sort.begin(), x_sort.end());
     return x_sort[n*3/4] - x_sort[n/4];
 }
 
@@ -50,7 +51,7 @@ void verify(bool cond, const char *msg)
 }
 
 
-array_t verify_1d(array_t x, const char *label)
+array_t verify_1d_contiguous(array_t x, const char *label)
 {
     char msg[80];
     x = x.squeeze();
@@ -62,15 +63,17 @@ array_t verify_1d(array_t x, const char *label)
         sprintf(msg, "`%s` is not one-dimensional", label);
         throw std::invalid_argument(msg);
     }
+    if (x.strides(0) != x.itemsize()) {
+        sprintf(msg, "`%s` is not contiguous", label);
+        throw std::invalid_argument(msg);
+    }
     return x;
 }
 
 
 array_t generate_bins(const float *x, int n, int num_bins)
 {
-    std::vector<float> sorted_x(x, x + n);
-    std::sort(sorted_x.begin(), sorted_x.end());
-
+    std::vector<float> sorted_x = subsample_sort(x, n);
     std::vector<float> out(num_bins);
     const float slope = float(n - 1) / float(num_bins + 1);
     for (int i = 0; i < num_bins; ++i) {
@@ -125,8 +128,8 @@ array_t process_bins_array(const array_t x, py::object bins, bool linear=false)
 std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
                                    std::optional<float> bandwidth)
 {
-    x = verify_1d(x, "x");
-    y = verify_1d(y, "y");
+    x = verify_1d_contiguous(x, "x");
+    y = verify_1d_contiguous(y, "y");
     verify(x.shape(0) == y.shape(0), "input length mismatch");
 
     array_t bin_array = process_bins_array(x, bins);
@@ -146,9 +149,7 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
     else {
         h = interquartile_range(x) * 1.414f;
     }
-    if (h <= 0) {
-        throw std::invalid_argument("invalid bandwidth");
-    }
+    verify(h > 0, "invalid bandwidth");
 
     /*
      * Calling python functions from within a thread is a bit of a mess.
@@ -181,7 +182,7 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
 std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
                                       std::optional<float> bandwidth)
 {
-    x = verify_1d(x, "x");
+    x = verify_1d_contiguous(x, "x");
 
     array_t bin_array = process_bins_array(x, bins, true);
     int n = x.shape(0);
@@ -204,9 +205,7 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
             h = (*max - *min) * 0.1; // desperate guess
         }
     }
-    if (h <= 0) {
-        throw std::invalid_argument("invalid bandwidth");
-    }
+    verify(h > 0, "invalid bandwidth");
 
     bool ok = true;
     {
@@ -234,9 +233,9 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
 std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object bins,
                                      std::optional<float> bandwidth)
 {
-    x = verify_1d(x, "x");
-    y = verify_1d(y, "y");
-    z = verify_1d(z, "z");
+    x = verify_1d_contiguous(x, "x");
+    y = verify_1d_contiguous(y, "y");
+    z = verify_1d_contiguous(z, "z");
     verify(x.shape(0) == y.shape(0), "input length mismatch");
     verify(x.shape(0) == z.shape(0), "input length mismatch");
 
@@ -251,9 +250,7 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
     else {
         h = interquartile_range(z) * 0.2f; // not sure what value to use here
     }
-    if (h <= 0) {
-        throw std::invalid_argument("invalid bandwidth");
-    }
+    verify(h > 0, "invalid bandwidth");
 
     const float *p_x  = x.data(0);
     const float *p_y  = y.data(0);

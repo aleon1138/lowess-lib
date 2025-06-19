@@ -1,2 +1,4 @@
 build/
 lowesslib.egg-info/
+*.o
+*.so
