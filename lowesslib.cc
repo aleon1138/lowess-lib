@@ -75,7 +75,7 @@ array_t generate_bins(const float *x, int n, int num_bins)
 {
     std::vector<float> sorted_x = subsample_sort(x, n);
     std::vector<float> out(num_bins);
-    const float slope = float(n - 1) / float(num_bins + 1);
+    const float slope = float(sorted_x.size() - 1) / float(num_bins + 1);
     for (int i = 0; i < num_bins; ++i) {
         out[i] = sorted_x[std::round(float(i + 1) * slope)];
     }
@@ -105,11 +105,11 @@ array_t generate_linear_bins(const float *x, int n, int num_bins)
  *        for calculating the bandwidth. We should sub-sample by 1/10 for large
  *        arrays and/or look at parallelized versions
  */
-array_t process_bins_array(const array_t x, py::object bins, bool linear=false)
+array_t process_bins_array(const array_t &x, py::object bins, bool linear=false)
 {
     array_t bin_array;
     if (py::isinstance<py::int_>(bins)) {
-        const float *p = x.data(0);
+        const float *p = x.data();
         int n = x.shape(0);
         int m = std::min(bins.cast<int>(), n);
         bin_array = linear? generate_linear_bins(p, n, m) : generate_bins(p, n, m);
