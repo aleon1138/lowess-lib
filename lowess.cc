@@ -1,5 +1,3 @@
-#include <immintrin.h>
-#include <xmmintrin.h>
 #include <cmath>
 
 
@@ -19,6 +17,10 @@ struct covar_t {
 
 
 #ifdef __AVX__
+#include <immintrin.h>
+#include <xmmintrin.h>
+
+
 /*
  *  Gaussian kernel:
  *    y = exp(-0.5*u*u)
