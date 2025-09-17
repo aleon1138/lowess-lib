@@ -26,7 +26,7 @@ def _process_bins_array(x, bins):
     return np.array([x[round(float(i + 1) * slope)] for i in range(bins)])
 
 
-@numba.njit(parallel=True)
+@numba.njit(parallel=True, fastmath=True)
 def _solve_intercept(x, y, x_out, h):
     k = 1.0 / h
     y_out = np.zeros(len(x_out), dtype="f")

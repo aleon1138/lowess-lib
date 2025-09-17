@@ -6,3 +6,10 @@ Notes:
 * Code is not multi-threaded yet
 * There is some attempt to use SIMD via the "cpu=native" flag
 * I still have to do some performance testing against C++ code
+
+
+Performance:
+rust    766 ms  1 core
+numba   175 ms  12 cores
+c++     146 ms  12 cores, no AVX
+c++      24 ms  12 cores
