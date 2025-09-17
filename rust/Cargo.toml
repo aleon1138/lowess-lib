@@ -1,0 +1,12 @@
+[package]
+name = "lowesslib"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "lowesslib"
+crate-type = ["cdylib"]
+
+[dependencies]
+numpy = "0.25.0"
+pyo3 = { version="0.25.0", features=["extension-module"] }
