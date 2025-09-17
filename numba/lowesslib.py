@@ -21,13 +21,17 @@ def _process_bins_array(x, bins):
     if hasattr(bins, "__len__"):
         return np.array(bins, dtype="f32").squeeze()
     x = _subsample_sort(x)
-    bins = min(bins, len(x))
-    slope = float(len(x) - 1) / float(bins + 1)
-    return np.array([x[round(float(i + 1) * slope)] for i in range(bins)])
+    if bins < len(x):
+        idx = np.arange(1, bins + 1) * float(len(x) - 1) / float(bins + 1)
+        return x[np.around(idx).astype("l")]
+    return x
 
 
 @numba.njit(parallel=True, fastmath=True)
 def _solve_intercept(x, y, x_out, h):
+    assert len(x) == len(y), "input length mismatch"
+    assert h > 0, "invalid bandwidth"
+
     k = 1.0 / h
     y_out = np.zeros(len(x_out), dtype="f")
     for j in numba.prange(len(x_out)):
@@ -78,9 +82,6 @@ def smooth(x, y, bins=100, bandwidth=None):
         Smoothed, interpolated values of `y` at `xi`.
     """
 
-    assert len(x) == len(y), "input length mismatch"
-
     x_out = _process_bins_array(x, bins)
     h = bandwidth if bandwidth is not None else _interquartile_range(x) * 1.414
-    assert h > 0, "invalid bandwidth"
     return x_out, _solve_intercept(x, y, x_out, h)
