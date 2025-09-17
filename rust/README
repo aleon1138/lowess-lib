@@ -1,1 +1,8 @@
-Compile with `maturin dev`
+Compile with `maturin dev` or `pip install`
+
+Notes:
+* Code was converted from C++ using ChatGPT and was quite painless
+* I can't figure out how to automatically cast inputs "x" and "y" into f32
+* Code is not multi-threaded yet
+* There is some attempt to use SIMD via the "cpu=native" flag
+* I still have to do some performance testing against C++ code
