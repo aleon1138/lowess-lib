@@ -135,15 +135,15 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
     y = verify_1d_contiguous(y, "y");
     verify(x.shape(0) == y.shape(0), "input length mismatch");
 
-    array_t bin_array = process_bins_array(x, bins);
-    const float *pxi = bin_array.data(0);
+    array_t x_out = process_bins_array(x, bins);
+    const float *pxi = x_out.data(0);
     const float *px  = x.data(0);
     const float *py  = y.data(0);
-    const int    m   = bin_array.shape(0);
+    const int    m   = x_out.shape(0);
     const int    n   = x.shape(0);
 
-    py::array_t<float> yi = py::array_t<float>(m);
-    float *pyi = yi.mutable_data(0);
+    py::array_t<float> y_out = py::array_t<float>(m);
+    float *pyi = y_out.mutable_data(0);
 
     float h;
     if (bandwidth) {
@@ -178,7 +178,7 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
     if (!ok) {
         throw py::error_already_set();
     }
-    return std::make_tuple(bin_array, yi);
+    return std::make_tuple(x_out, y_out);
 }
 
 
