@@ -23,11 +23,11 @@ struct covar_t {
 
 /*
  *  Gaussian kernel:
- *    y = exp(-0.5*u*u)
+ *    y = exp(-u*u)
  */
 __m256 _mm256_gauss_kernel_ps(__m256 u)
 {
-    __m256 x = _mm256_mul_ps(_mm256_set1_ps(-0.5f), _mm256_mul_ps(u,u));
+    __m256 x = _mm256_mul_ps(-u,u);
 
     // Clamp `x` to avoid numerical issues with large negative values
     x = _mm256_max_ps(x, _mm256_set1_ps(-30.0f));
@@ -71,18 +71,17 @@ coeff_t solve_intercept_simd(const float *x_, const float *y_, float x0_, float 
     __m256 xy1 = _mm256_setzero_ps();
 
     for (int i = 0; i < n; i += 8) {
-        __m256 x   = _mm256_loadu_ps(x_+i);
-        __m256 y   = _mm256_loadu_ps(y_+i);
-        __m256 u   = _mm256_mul_ps(_mm256_sub_ps(x0, x), k);
-        __m256 w   = _mm256_gauss_kernel_ps(u);
-        __m256 w2  = _mm256_mul_ps(w,w);
-        __m256 w2u = _mm256_mul_ps(w2,u);
+        __m256 x  = _mm256_loadu_ps(x_+i);
+        __m256 y  = _mm256_loadu_ps(y_+i);
+        __m256 u  = _mm256_mul_ps(_mm256_sub_ps(x0, x), k);
+        __m256 w  = _mm256_gauss_kernel_ps(u);
+        __m256 wu = _mm256_mul_ps(w,u);
 
-        x00 = _mm256_add_ps  (w2,     x00);
-        x01 = _mm256_fmadd_ps(w2,  u, x01);
-        x11 = _mm256_fmadd_ps(w2u, u, x11);
-        xy0 = _mm256_fmadd_ps(w2,  y, xy0);
-        xy1 = _mm256_fmadd_ps(w2u, y, xy1);
+        x00 = _mm256_add_ps  (w,     x00);
+        x01 = _mm256_fmadd_ps(w,  u, x01);
+        x11 = _mm256_fmadd_ps(wu, u, x11);
+        xy0 = _mm256_fmadd_ps(w,  y, xy0);
+        xy1 = _mm256_fmadd_ps(wu, y, xy1);
     }
 
     // *INDENT-OFF*

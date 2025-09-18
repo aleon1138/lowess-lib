@@ -12,4 +12,4 @@ Performance:
 rust    766 ms  1 core
 numba   175 ms  12 cores
 c++     146 ms  12 cores, no AVX
-c++      24 ms  12 cores
+c++      23 ms  12 cores
