@@ -17,35 +17,6 @@ float histogram_kernel(const float *x, float x0, float h, int n);
 float interact_kernel(const float *x, const float *y, const float *z, float z0, float h, int n);
 
 
-/*
- * Sorting can be a major bottleneck for very large arrays. So the simplest
- * approach is to just sub-sample the data and sort the reduced set.
- */
-std::vector<float> subsample_sort(const float *x, size_t n)
-{
-    const size_t MAX_SIZE = 100000;
-    const size_t stride   = std::max(1ul, n / MAX_SIZE);
-
-    std::vector<float> y;
-    y.reserve((n+stride-1) / stride);
-
-    const float *end = x+n;
-    for (const float *p = x; p < end; p += stride) {
-        y.push_back(*p);
-    }
-    std::sort(y.begin(), y.end());
-    return y;
-}
-
-
-float interquartile_range(const array_t &x)
-{
-    std::vector<float> x_sort = subsample_sort(x.data(), x.size());
-    const int n = x_sort.size();
-    return x_sort[n*3/4] - x_sort[n/4];
-}
-
-
 void verify(bool cond, const char *msg)
 {
     if (cond == false) {
@@ -71,6 +42,36 @@ array_t verify_1d_contiguous(array_t x, const char *label)
         throw std::invalid_argument(msg);
     }
     return x;
+}
+
+
+/*
+ * Sorting can be a major bottleneck for very large arrays. So the simplest
+ * approach is to just sub-sample the data and sort the reduced set.
+ */
+std::vector<float> subsample_sort(const float *x, size_t n)
+{
+    const size_t MAX_SIZE = 100000;
+    const size_t stride   = std::max(1ul, n / MAX_SIZE);
+
+    std::vector<float> y;
+    y.reserve((n+stride-1) / stride);
+
+    const float *end = x+n;
+    for (const float *p = x; p < end; p += stride) {
+        y.push_back(*p);
+    }
+    std::sort(y.begin(), y.end());
+    return y;
+}
+
+
+float interquartile_range(const array_t &x)
+{
+    std::vector<float> x_sort = subsample_sort(x.data(), x.size());
+    const int n = x_sort.size();
+    verify(n > 0, "empty vector for range");
+    return x_sort[n*3/4] - x_sort[n/4];
 }
 
 
@@ -100,9 +101,38 @@ array_t generate_linear_bins(const float *x, int n, int num_bins)
     return array_t(out.size(), out.data());
 }
 
+/*
+ * Take two arrays and drop any rows from both if any have NAN's
+ */
+std::tuple<array_t,array_t> drop_any_nans(const array_t &x, const array_t &y)
+{
+    verify(x.shape(0) == y.shape(0), "input length mismatch");
+
+    const int n = x.size();
+    std::vector<float> x_out;
+    std::vector<float> y_out;
+    x_out.reserve(n);
+    y_out.reserve(n);
+
+    auto px = x.unchecked<1>();
+    auto py = y.unchecked<1>();
+    for (int i = 0; i < n; ++i) {
+        if (std::isfinite(px(i)) && std::isfinite(py(i))) {
+            x_out.push_back(px(i));
+            y_out.push_back(py(i));
+        }
+    }
+
+    return std::make_tuple(
+               array_t(x_out.size(), x_out.data()),
+               array_t(y_out.size(), y_out.data())
+           );
+}
+
 
 /*
- * Handle creation or conversion of `bin_array`.
+ * If `bins` is a scalar, generate the interpolation points along `x`. Otherwise
+ * simply return `bins` after performing some validation.
  *
  * TODO - we're sorting the `x` array twice, one for generating bins and again
  *        for calculating the bandwidth. We should sub-sample by 1/10 for large
@@ -133,7 +163,7 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
 {
     x = verify_1d_contiguous(x, "x");
     y = verify_1d_contiguous(y, "y");
-    verify(x.shape(0) == y.shape(0), "input length mismatch");
+    std::tie(x,y) = drop_any_nans(x,y);
 
     array_t x_out = process_bins_array(x, bins);
     const float *pxi = x_out.data(0);
