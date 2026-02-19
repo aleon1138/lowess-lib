@@ -104,29 +104,52 @@ array_t generate_linear_bins(const float *x, int n, int num_bins)
 /*
  * Take two arrays and drop any rows from both if any have NAN's
  */
-std::tuple<array_t,array_t> drop_any_nans(const array_t &x, const array_t &y)
+std::vector<array_t> drop_any_nans(const std::vector<array_t> &xy)
 {
-    verify(x.shape(0) == y.shape(0), "input length mismatch");
-
-    const int n = x.size();
-    std::vector<float> x_out;
-    std::vector<float> y_out;
-    x_out.reserve(n);
-    y_out.reserve(n);
-
-    auto px = x.unchecked<1>();
-    auto py = y.unchecked<1>();
-    for (int i = 0; i < n; ++i) {
-        if (std::isfinite(px(i)) && std::isfinite(py(i))) {
-            x_out.push_back(px(i));
-            y_out.push_back(py(i));
-        }
+    const int k = xy.size();
+    const int n = xy[0].shape(0);
+    for (const auto &v: xy) {
+        verify(v.shape(0) == n, "input length mismatch");
     }
 
-    return std::make_tuple(
-               array_t(x_out.size(), x_out.data()),
-               array_t(y_out.size(), y_out.data())
-           );
+    std::vector<std::vector<float>> out;
+    out.reserve(k);
+    for (int j = 0; j < k; ++j) {
+        out.emplace_back(n);
+    }
+
+    /*
+     * TODO - use unchecked views instead of raw pointers
+     */
+    std::vector<const float*> p;
+    for (const auto &v: xy) {
+        verify(v.ndim() == 1, "data must be 1-D array");
+        verify(v.strides(0) == v.itemsize(), "data not contiguous");
+        p.push_back(v.data());
+    }
+
+    int row = 0;
+    for (int i = 0; i < n; ++i) {
+        float sum = 0.0;
+        for (int j = 0; j < k; ++j) {
+            const float x = p[j][i];
+            out[j][row] = x;
+            sum += x;
+        }
+        row += std::isfinite(sum);
+    }
+
+    /*
+     * TODO - pre-allocate the `array_t` and then return a slice
+     */
+    std::vector<array_t> v_out;
+    v_out.reserve(out.size());
+    for (const auto &o: out) {
+        array_t a(row);
+        std::memcpy(a.mutable_data(), o.data(), row * sizeof(float));
+        v_out.push_back(std::move(a));
+    }
+    return v_out;
 }
 
 
@@ -163,7 +186,9 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
 {
     x = verify_1d_contiguous(x, "x");
     y = verify_1d_contiguous(y, "y");
-    std::tie(x,y) = drop_any_nans(x,y);
+    auto out = drop_any_nans({x,y});
+    x = std::move(out[0]);
+    y = std::move(out[1]);
 
     array_t x_out = process_bins_array(x, bins);
     const float *pxi = x_out.data(0);
@@ -216,6 +241,7 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
                                       std::optional<float> bandwidth)
 {
     x = verify_1d_contiguous(x, "x");
+    x = std::move(drop_any_nans({x})[0]);
 
     array_t bin_array = process_bins_array(x, bins, true);
     int n = x.shape(0);
@@ -269,8 +295,10 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
     x = verify_1d_contiguous(x, "x");
     y = verify_1d_contiguous(y, "y");
     z = verify_1d_contiguous(z, "z");
-    verify(x.shape(0) == y.shape(0), "input length mismatch");
-    verify(x.shape(0) == z.shape(0), "input length mismatch");
+    auto out = drop_any_nans({x,y,z});
+    x = std::move(out[0]);
+    y = std::move(out[1]);
+    z = std::move(out[2]);
 
     array_t zi = process_bins_array(z, bins);
     const int n = x.shape(0);
