@@ -24,21 +24,32 @@ void verify(bool cond, const char *msg)
     }
 }
 
+/*
+ * Create a new pybind array by copying the data. If you use the default ctor
+ * it will only create a view and can not be returned as output.
+ */
+array_t new_array_t(int size, const float *data)
+{
+    array_t out(size);
+    std::memcpy(out.mutable_data(), data, size * sizeof(float));
+    return out;
+}
+
 
 array_t verify_1d_contiguous(array_t x, const char *label)
 {
-    char msg[80];
+    char msg[120];
     x = x.squeeze();
     if (x.shape(0) == 0) {
-        sprintf(msg, "`%s` is empty", label);
+        snprintf(msg, sizeof(msg), "`%s` is empty", label);
         throw std::invalid_argument(msg);
     }
     if (x.ndim() != 1) {
-        sprintf(msg, "`%s` is not one-dimensional", label);
+        snprintf(msg, sizeof(msg), "`%s` is not one-dimensional", label);
         throw std::invalid_argument(msg);
     }
     if (x.strides(0) != x.itemsize()) {
-        sprintf(msg, "`%s` is not contiguous", label);
+        snprintf(msg, sizeof(msg), "`%s` is not contiguous", label);
         throw std::invalid_argument(msg);
     }
     return x;
@@ -83,7 +94,7 @@ array_t generate_bins(const float *x, int n, int num_bins)
     for (int i = 0; i < num_bins; ++i) {
         out[i] = sorted_x[std::round(float(i + 1) * slope)];
     }
-    return array_t(out.size(), out.data());
+    return new_array_t(out.size(), out.data());
 }
 
 
@@ -98,7 +109,7 @@ array_t generate_linear_bins(const float *x, int n, int num_bins)
     for (int i = 0; i < num_bins; ++i) {
         out[i] = y0 + slope * i;
     }
-    return array_t(out.size(), out.data());
+    return new_array_t(out.size(), out.data());
 }
 
 /*
@@ -140,14 +151,13 @@ std::vector<array_t> drop_any_nans(const std::vector<array_t> &xy)
     }
 
     /*
-     * TODO - pre-allocate the `array_t` and then return a slice
+     * TODO - pre-allocate the pybind array and return a slice instead of
+     *        creating and copying the data from a temporary vector.
      */
     std::vector<array_t> v_out;
     v_out.reserve(out.size());
     for (const auto &o: out) {
-        array_t a(row);
-        std::memcpy(a.mutable_data(), o.data(), row * sizeof(float));
-        v_out.push_back(std::move(a));
+        v_out.push_back(std::move(new_array_t(row, o.data())));
     }
     return v_out;
 }
