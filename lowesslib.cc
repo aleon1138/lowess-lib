@@ -192,13 +192,16 @@ array_t process_bins_array(const array_t &x, py::object bins, bool linear=false)
 
 
 std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
-                                   std::optional<float> bandwidth)
+                                   std::optional<float> bandwidth,
+                                   bool dropna)
 {
     x = verify_1d_contiguous(x, "x");
     y = verify_1d_contiguous(y, "y");
-    auto out = drop_any_nans({x,y});
-    x = std::move(out[0]);
-    y = std::move(out[1]);
+    if (dropna) {
+        auto out = drop_any_nans({x,y});
+        x = std::move(out[0]);
+        y = std::move(out[1]);
+    }
 
     array_t x_out = process_bins_array(x, bins);
     const float *pxi = x_out.data(0);
@@ -248,10 +251,13 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
 
 
 std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
-                                      std::optional<float> bandwidth)
+                                      std::optional<float> bandwidth,
+                                      bool dropna)
 {
     x = verify_1d_contiguous(x, "x");
-    x = std::move(drop_any_nans({x})[0]);
+    if (dropna) {
+        x = std::move(drop_any_nans({x})[0]);
+    }
 
     array_t bin_array = process_bins_array(x, bins, true);
     int n = x.shape(0);
@@ -300,15 +306,17 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
 
 
 std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object bins,
-                                     std::optional<float> bandwidth)
+                                     std::optional<float> bandwidth, bool dropna)
 {
     x = verify_1d_contiguous(x, "x");
     y = verify_1d_contiguous(y, "y");
     z = verify_1d_contiguous(z, "z");
-    auto out = drop_any_nans({x,y,z});
-    x = std::move(out[0]);
-    y = std::move(out[1]);
-    z = std::move(out[2]);
+    if (dropna) {
+        auto out = drop_any_nans({x,y,z});
+        x = std::move(out[0]);
+        y = std::move(out[1]);
+        z = std::move(out[2]);
+    }
 
     array_t zi = process_bins_array(z, bins);
     const int n = x.shape(0);
@@ -350,7 +358,7 @@ PYBIND11_MODULE(lowesslib, m)
     m.doc() = "LOWESS: Locally Weighted Scatter plot Smoothing";
 
     m.def("smooth", &smooth,
-          R"pbdoc(smooth(x, y, bins=100, bandwidth=None)
+          R"pbdoc(smooth(x, y, bins=100, bandwidth=None, dropna=True)
 
     Perform LOWESS (Locally Weighted Scatterplot Smoothing) on one-dimensional data.
 
@@ -371,6 +379,9 @@ PYBIND11_MODULE(lowesslib, m)
         Kernel bandwidth for smoothing, in the same units as `x`.
         Defaults to 1.41 times the interquartile range (IQR) of `x`.
 
+    dropna: bool, optional
+        Remove all NAN's and INF's from the data. This will make a copy.
+
     Returns
     -------
     xi : ndarray
@@ -379,12 +390,16 @@ PYBIND11_MODULE(lowesslib, m)
     yi : ndarray
         Smoothed, interpolated values of `y` at `xi`.)pbdoc",
 
-          py::arg("x"), py::arg("y"), py::arg("bins") = 100, py::arg("bandwidth") = py::none());
+          py::arg("x"), py::arg("y"), py::arg("bins") = 100,
+          py::arg("bandwidth") = py::none(),
+          py::arg("dropna") = true);
 
     //-------------------------------------------------------------------------
 
     m.def("histogram", &histogram,
-          R"pbdoc(Estimate the histogram of a dataset using kernel density estimation.
+          R"pbdoc(histogram(x, bins=100, bandwidth=None, dropna=True)
+
+    Estimate the histogram of a dataset using kernel density estimation.
 
     Parameters
     ----------
@@ -398,6 +413,9 @@ PYBIND11_MODULE(lowesslib, m)
     bandwidth : float, optional
         Kernel bandwidth for smoothing, in the same units as `x`.
 
+    dropna: bool, optional
+        Remove all NAN's and INF's from the data. This will make a copy.
+
     Returns
     -------
     bins : ndarray
@@ -410,12 +428,13 @@ PYBIND11_MODULE(lowesslib, m)
     --------
     Chapter 3 of "Applied Regression Analysis and Generalized Linear Models")pbdoc",
 
-          py::arg("x"), py::arg("bins") = 100, py::arg("bandwidth") = py::none());
+          py::arg("x"), py::arg("bins") = 100, py::arg("bandwidth") = py::none(),
+          py::arg("dropna") = true);
 
     //-------------------------------------------------------------------------
 
     m.def("interact", &interact,
-          R"pbdoc(interact(x, y, z, bins=100, bandwidth=None)
+          R"pbdoc(interact(x, y, z, bins=100, bandwidth=None, dropna=True)
 
     Identify the functional form of `z` in the interaction model: `y = x * f(z)`
 
@@ -439,6 +458,9 @@ PYBIND11_MODULE(lowesslib, m)
     bandwidth : float, optional
         Kernel bandwidth for smoothing, in the same units as `z`.
 
+    dropna: bool, optional
+        Remove all NAN's and INF's from the data. This will make a copy.
+
     Returns
     -------
     zi : ndarray
@@ -446,5 +468,8 @@ PYBIND11_MODULE(lowesslib, m)
 
     f(zi) : ndarray
         Estimated functional form of `f(z)` in the model `y = x * f(z)`)pbdoc",
-          py::arg("x"), py::arg("y"), py::arg("z"), py::arg("bins") = 100, py::arg("bandwidth") = py::none());
+          py::arg("x"), py::arg("y"), py::arg("z"), py::arg("bins") = 100,
+          py::arg("bandwidth") = py::none(),
+          py::arg("dropna") = true);
+
 }
