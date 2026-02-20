@@ -44,6 +44,24 @@ statsmodels:
 lowesslib:
 99.5 µs ± 1.37 µs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)
 ```
+
+### Dropping NAN's 
+The default behaviour is to automatically check for and drop NAN's and INF's. 
+This can slow things down for large datasets so there is an option to disable.
+```python
+n = 10_000_000
+x = np.random.randn(n)
+y = x + np.random.randn(n)
+
+%time _ = lowesslib.smooth(x, y)
+# CPU times: user 1.67 s, sys: 50.5 ms, total: 1.72 s
+# Wall time: 257 ms
+
+%time _ = lowesslib.smooth(x, y, dropna=False)
+# CPU times: user 1.59 s, sys: 6.92 ms, total: 1.6 s
+# Wall time: 162 ms
+```
+
 ## Examples
 
 ### Kernel Smoothing
