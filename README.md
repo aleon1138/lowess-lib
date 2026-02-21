@@ -45,13 +45,17 @@ lowesslib:
 99.5 µs ± 1.37 µs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)
 ```
 
-How does this compare against `numba`? We built a functionally equivalent multi-threaded version
-and compared timings. We were able to achieve better than an order of magnitude improvement
-for arrays larger than 10,000 items (with dropna=False).
+### Comparison with Numba
+
+How does this compare against multi-threaded `numba`? We were able to outperform
+it by order of magnitude (with dropna=False). There is a discontinuity at
+100,000 items due to the maximum size of the sort needed for the
+estimation of interpolation locations and bandwidth (see `MAX_SIZE` in
+`subsample_sort`). This could be optimized further in the future.
 
 ![figure_3](img/Figure_3.png)
 
-### Dropping NAN's
+## Dropping NAN's
 The default behaviour is to automatically check for and drop NAN's and INF's.
 This can slow things down for large datasets so there is an option to disable.
 ```python
