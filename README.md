@@ -45,9 +45,9 @@ lowesslib:
 99.5 µs ± 1.37 µs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)
 ```
 
-How does this compare against `numba`? We built a equivalent multi-threaded version
-and compared timings. We achieve roughly an order of magnitude better performance
-for arrays sizes greater than 10,000 items.
+How does this compare against `numba`? We built a functionally equivalent multi-threaded version
+and compared timings. We were able to achieve better than an order of magnitude improvement
+for arrays larger than 10,000 items (with dropna=False).
 
 ![figure_3](img/Figure_3.png)
 
