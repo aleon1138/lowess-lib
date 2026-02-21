@@ -45,8 +45,14 @@ lowesslib:
 99.5 µs ± 1.37 µs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)
 ```
 
-### Dropping NAN's 
-The default behaviour is to automatically check for and drop NAN's and INF's. 
+How does this compare against `numba`? We built a equivalent multi-threaded version
+and compared timings. We achieve roughly an order of magnitude better performance
+for arrays sizes greater than 10,000 items.
+
+![figure_3](img/Figure_3.png)
+
+### Dropping NAN's
+The default behaviour is to automatically check for and drop NAN's and INF's.
 This can slow things down for large datasets so there is an option to disable.
 ```python
 n = 10_000_000
@@ -84,7 +90,7 @@ We can use `histogram` to smooth out density histograms:
 ```python
 x = np.random.rayleigh(scale=10, size=10_000)
 figure(figsize=(5,3.5))
-hist(x, bins=100, density=True, alpha=.6);
+hist(x, bins=100, density=True, alpha=.6)
 plot(*lowesslib.histogram(x, bandwidth=1.5), color='r')
 tight_layout()
 ```
