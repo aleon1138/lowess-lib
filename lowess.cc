@@ -207,3 +207,39 @@ float interact_kernel(const float *x, const float *y, const float *z,
     }
     return o.xx > 0.0? o.xy / o.xx : 0.0;
 }
+
+
+/*
+ *  Euclidean distance squared, by calculating:
+ *    v = (X - x0)/h
+ *    u = sqrt((v*v).sum(1))
+ */
+void distance(
+    float *u,           // (n) output
+    const float *X,     // (n x m) with stride ldx
+    const float *x0,    // (m)
+    float h, int ldx, int n, int m)
+{
+    int m0 = m - (m%8);
+    const float w = 1.0f / h;
+    __m256 w_ = _mm256_set1_ps(w);
+
+    for (int i = 0; i < n; ++i) {
+        const float *xi = X + i*ldx;
+
+        __m256 z_ = _mm256_setzero_ps();
+        for (int j = 0; j < m0; j+=8) {
+            __m256 X_ = _mm256_loadu_ps(xi+j);
+            __m256 x_ = _mm256_loadu_ps(x0+j);
+            __m256 v_ = _mm256_mul_ps(_mm256_sub_ps(X_, x_), w_);
+            z_ = _mm256_fmadd_ps(v_, v_, z_);
+        }
+
+        float z = hsum(z_);
+        for (int j = m0; j < m; ++j) {
+            float v = (xi[j] - x0[j]) * w;
+            z += v*v;
+        }
+        u[i] = std::sqrt(z);
+    }
+}

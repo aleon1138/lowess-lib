@@ -9,13 +9,19 @@
 
 namespace py = pybind11;
 
-// Force arrays to be column-contiguous and cast to float
+/*
+ * Force arrays to be contiguous and cast to float. This could create a copy so
+ * there might be some room for optimization here later on, perhaps. The reason
+ * if because it might actually pay to make the copy so that memory is aligned
+ * correctly as we do all these nested loops.
+ */
 typedef py::array_t<float, py::array::f_style | py::array::forcecast> array_t;
+typedef py::array_t<float, py::array::c_style | py::array::forcecast> carray_t;
 
 float solve_intercept(const float *x, const float *y, float x0, float h, int n);
 float histogram_kernel(const float *x, float x0, float h, int n);
 float interact_kernel(const float *x, const float *y, const float *z, float z0, float h, int n);
-
+void distance(float *u, const float *X, const float *x0, float h, int ldx, int n, int m);
 
 void verify(bool cond, const char *msg)
 {
@@ -50,6 +56,30 @@ array_t verify_1d_contiguous(array_t x, const char *label)
     }
     if (x.strides(0) != x.itemsize()) {
         snprintf(msg, sizeof(msg), "`%s` is not contiguous", label);
+        throw std::invalid_argument(msg);
+    }
+    return x;
+}
+
+carray_t verify_2d_contiguous(carray_t x, const char *label)
+{
+    char msg[120];
+    if (x.shape(0) == 0) {
+        snprintf(msg, sizeof(msg), "`%s` is empty", label);
+        throw std::invalid_argument(msg);
+    }
+    if (x.ndim() < 1 || x.ndim() > 2) {
+        snprintf(msg, sizeof(msg), "`%s` is not two-dimensional", label);
+        throw std::invalid_argument(msg);
+    }
+
+    int n = x.shape(0);
+    if (x.ndim() == 1) {
+        x = x.reshape({n,1});
+    }
+
+    if (x.strides(1) != x.itemsize()) {
+        snprintf(msg, sizeof(msg), "`%s` is not C-contiguous", label);
         throw std::invalid_argument(msg);
     }
     return x;
@@ -228,6 +258,9 @@ float unwrap(const Bandwidth& bandwidth, Func&& func)
 }
 
 
+//-----------------------------------------------------------------------------
+
+
 std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
                                    std::optional<float> bandwidth,
                                    bool dropna)
@@ -259,6 +292,52 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
     });
 
     return std::make_tuple(x_out, y_out);
+}
+
+
+array_t forecast(carray_t x, array_t y, carray_t xi, float bandwidth)
+{
+    y  = verify_1d_contiguous(y,  "y");
+    x  = verify_2d_contiguous(x,  "x");
+    xi = verify_2d_contiguous(xi, "xi");
+    verify(x.shape(0) == y.shape(0),  "inconsistent dimensions: x and y");
+    verify(x.shape(1) == xi.shape(1), "inconsistent dimensions: x and xi");
+    verify(bandwidth > 0, "invalid bandwidth");
+
+    const int n = x.shape(0);
+    const int m = x.shape(1);
+    const int ldx  = x.strides(0)  / x.itemsize();
+    const int ldxi = xi.strides(0) / xi.itemsize();
+    py::array_t<float> yi(n);
+    std::vector<float> u(n);
+
+    const float *py = y.data(0);
+    float *pyi = yi.mutable_data(0);
+
+    for (int j = 0; j < xi.shape(0); ++j) {
+        distance(u.data(), x.data(0), xi.data(ldxi*j), bandwidth, ldx, n, m);
+
+        float x00 = 0;
+        float x01 = 0;
+        float x11 = 0;
+        float xy0 = 0;
+        float xy1 = 0;
+        for (int i = 0; i < n; ++i) {
+            float w = expf(-0.5 * u[i] * u[i]);
+            float ww = w * w;
+            x00 += ww;
+            x01 += ww * u[i];
+            x11 += ww * u[i] * u[i];
+            xy0 += ww * py[i];
+            xy1 += ww * u[i] * py[i];
+        }
+
+        float numer = x11 * xy0 - x01 * xy1;
+        float denom = x00 * x11 - x01 * x01;
+        pyi[j] = denom > 0? numer / denom : 0.0f;
+    }
+
+    return yi;
 }
 
 
@@ -378,6 +457,12 @@ PYBIND11_MODULE(lowesslib, m)
           py::arg("x"), py::arg("y"), py::arg("bins") = 100,
           py::arg("bandwidth") = py::none(),
           py::arg("dropna") = true);
+
+    //-------------------------------------------------------------------------
+
+    m.def("forecast", &forecast,
+          R"pbdoc(forecast(x, y, xo, bandwidth))pbdoc",
+          py::arg("x"), py::arg("y"), py::arg("xo"), py::arg("bandwidth"));
 
     //-------------------------------------------------------------------------
 
