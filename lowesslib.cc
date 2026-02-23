@@ -219,6 +219,15 @@ template <typename Func> void parallel_apply(int m, Func && func)
 }
 
 
+template <class Bandwidth, class Func>
+float unwrap(const Bandwidth& bandwidth, Func&& func)
+{
+    float h = bandwidth ? *bandwidth : static_cast<float>(func());
+    verify(h > 0, "invalid bandwidth");
+    return h;
+}
+
+
 std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
                                    std::optional<float> bandwidth,
                                    bool dropna)
@@ -241,14 +250,9 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
     py::array_t<float> y_out = py::array_t<float>(m);
     float *pyi = y_out.mutable_data(0);
 
-    float h;
-    if (bandwidth) {
-        h = bandwidth.value();
-    }
-    else {
-        h = interquartile_range(x) * 1.414f;
-    }
-    verify(h > 0, "invalid bandwidth");
+    float h = unwrap(bandwidth, [&]() {
+        return interquartile_range(x) * 1.414f;
+    });
 
     parallel_apply(m, [&](int i) {
         pyi[i] = solve_intercept(px, py, pxi[i], h, n);
@@ -276,20 +280,15 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
     const float *p_x = x.data(0);
     const float *p_b = bin_array.data(0);
 
-    float h;
-    if (bandwidth) {
-        h = bandwidth.value();
-    }
-    else {
+    float h = unwrap(bandwidth, [&]() {
         float A = interquartile_range(x) / 1.349f;  // Eq (3.3)
-        h = 0.9f * A / sqrtf(m);                    // Eq (3.2)
+        float h = 0.9f * A / sqrtf(m);              // Eq (3.2)
         if (h == 0) {
             auto [min, max] = std::minmax_element(x.data(), x.data()+x.size());
             h = (*max - *min) * 0.1; // desperate guess
         }
-    }
-    verify(h > 0, "invalid bandwidth");
-
+        return h;
+    });
 
     parallel_apply(m, [&](int i) {
         p_y[i] = histogram_kernel(p_x, p_b[i], h, n);
@@ -316,14 +315,9 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
     const int n = x.shape(0);
     const int m = zi.shape(0);
 
-    float h;
-    if (bandwidth) {
-        h = bandwidth.value();
-    }
-    else {
-        h = interquartile_range(z) * 0.2f; // not sure what value to use here
-    }
-    verify(h > 0, "invalid bandwidth");
+    float h = unwrap(bandwidth, [&]() {
+        return interquartile_range(z) * 0.2f; // not sure what value to use here
+    });
 
     const float *p_x  = x.data(0);
     const float *p_y  = y.data(0);
