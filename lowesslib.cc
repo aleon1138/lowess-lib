@@ -191,6 +191,34 @@ array_t process_bins_array(const array_t &x, py::object bins, bool linear=false)
 }
 
 
+/*
+ * Calling python functions from within a thread is a bit of a mess.
+ * See: https://github.com/python/cpython/issues/111034
+ * See: https://stackoverflow.com/q/78200321
+ */
+template <typename Func> void parallel_apply(int m, Func && func)
+{
+    bool ok = true;
+
+    py::gil_scoped_release gil_r;
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < m; i++) {
+        if (i % 32 == 0) {
+            py::gil_scoped_acquire gil;
+            ok &= (PyErr_CheckSignals() == 0);  // exit loop on CTRL-C
+        }
+
+        if (ok) {
+            func(i);
+        }
+    }
+
+    if (!ok) {
+        throw py::error_already_set();
+    }
+}
+
+
 std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
                                    std::optional<float> bandwidth,
                                    bool dropna)
@@ -222,30 +250,10 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
     }
     verify(h > 0, "invalid bandwidth");
 
-    /*
-     * Calling python functions from within a thread is a bit of a mess.
-     * See: https://github.com/python/cpython/issues/111034
-     * See: https://stackoverflow.com/q/78200321
-     */
-    bool ok = true;
-    {
-        py::gil_scoped_release gil_r;
-        #pragma omp parallel for schedule(static)
-        for (int i = 0; i < m; i++) {
-            if (i % 32 == 0) { // unintelligent optimization
-                py::gil_scoped_acquire gil;
-                ok &= (PyErr_CheckSignals() == 0);  // exit loop on CTRL-C
-            }
+    parallel_apply(m, [&](int i) {
+        pyi[i] = solve_intercept(px, py, pxi[i], h, n);
+    });
 
-            if (ok) {
-                pyi[i] = solve_intercept(px, py, pxi[i], h, n);
-            }
-        }
-    }
-
-    if (!ok) {
-        throw py::error_already_set();
-    }
     return std::make_tuple(x_out, y_out);
 }
 
@@ -282,25 +290,11 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
     }
     verify(h > 0, "invalid bandwidth");
 
-    bool ok = true;
-    {
-        py::gil_scoped_release gil_r;
-        #pragma omp parallel for schedule(static)
-        for (int i = 0; i < m; ++i) {
-            if (i % 32 == 0) { // unintelligent optimization
-                py::gil_scoped_acquire gil;
-                ok &= (PyErr_CheckSignals() == 0);  // exit loop on CTRL-C
-            }
 
-            if (ok) {
-                p_y[i] = histogram_kernel(p_x, p_b[i], h, n);
-            }
-        }
-    }
+    parallel_apply(m, [&](int i) {
+        p_y[i] = histogram_kernel(p_x, p_b[i], h, n);
+    });
 
-    if (!ok) {
-        throw py::error_already_set();
-    }
     return std::make_tuple(bin_array, y);
 }
 
@@ -339,12 +333,9 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
     py::array_t<float> bi = py::array_t<float>(m);
     float *p_bi = bi.mutable_data(0);
 
-    Py_BEGIN_ALLOW_THREADS  // Releases GIL
-    #pragma omp parallel for schedule(static)
-    for (int i = 0; i < m; ++i) {
+    parallel_apply(m, [&](int i) {
         p_bi[i] = interact_kernel(p_x, p_y, p_z, p_zi[i], h, n);
-    }
-    Py_END_ALLOW_THREADS  // Re-acquires GIL
+    });
 
     return std::make_tuple(zi, bi);
 }

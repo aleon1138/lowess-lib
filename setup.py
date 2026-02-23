@@ -11,7 +11,7 @@ module = Extension(
 
 setup(
     name="lowesslib",
-    version="0.2.1",
+    version="0.2.2",
     author="Arnaldo Leon",
     author_email="amleon@alum.mit.edu",
     description="Utilities for Locally Weighted Scatterplot Smoothing",
