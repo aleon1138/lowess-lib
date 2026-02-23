@@ -20,7 +20,6 @@ setup(
     ext_modules=[module],
     python_requires=">=3.7",
     install_requires=[
-        "pybind11>=2.6",
         "numpy>=1.18",
     ],
     project_urls={
