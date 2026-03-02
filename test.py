@@ -3,7 +3,7 @@ import timeit
 import numpy as np
 import sys
 
-sys.path.insert(0, "numba")
+sys.path.insert(0, "ext")
 import lowesslib_numba as low1
 import lowesslib as low2
 
