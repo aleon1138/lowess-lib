@@ -19,17 +19,23 @@ def generate_data(n):
 
 class TestLowess(unittest.TestCase):
 
-    def setUp(self):
-        x, y, z = generate_data(100_000)
-        self.x = x
-        self.y = y
-        self.z = z
+    def test_smooth_avx_tail(self):
+        x, y, z = generate_data(7)
 
-    def test_smooth_default(self):
-        a = low1.smooth(self.x, self.y)
-        b = low2.smooth(self.x, self.y)
-        self.assertTrue(np.allclose(a[0], b[0], atol=1e-6))
-        self.assertTrue(np.allclose(a[1], b[1], atol=1e-3))
+        a = low1.smooth(x, y, bins=x)
+        b = low2.smooth(x, y, bins=x)
+
+        self.assertTrue((a[1] - b[1]).std() < 1e-6)
+
+    def test_smooth_avx(self):
+        x, y, z = generate_data(8 * 1252)
+
+        a = low1.smooth(x, y)
+        b = low2.smooth(x, y)
+
+        # AVX implementation for `exp(x)` is only an approximation
+        self.assertTrue((a[0] - b[0]).std() < 1e-9)
+        self.assertTrue((a[1] - b[1]).std() < 1e-2)
 
 
 def benchmark():

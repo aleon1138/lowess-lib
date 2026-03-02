@@ -19,7 +19,7 @@ def _interquartile_range(x):
 
 def _process_bins_array(x, bins):
     if hasattr(bins, "__len__"):
-        return np.array(bins, dtype="f32").squeeze()
+        return np.array(bins, dtype="f").squeeze()
     x = _subsample_sort(x)
     if bins < len(x):
         idx = np.arange(1, bins + 1) * float(len(x) - 1) / float(bins + 1)
@@ -27,18 +27,17 @@ def _process_bins_array(x, bins):
     return x
 
 
-@numba.njit(parallel=True, fastmath=True)
+@numba.njit(parallel=True)
 def _solve_intercept(x, y, x_out, h):
     assert len(x) == len(y), "input length mismatch"
     assert h > 0, "invalid bandwidth"
 
-    k = 1.0 / h
     y_out = np.zeros(len(x_out), dtype="f")
     for j in numba.prange(len(x_out)):
         x00, x01, x11, xy0, xy1 = 0, 0, 0, 0, 0
         for i in range(len(x)):
-            u = (x_out[j] - x[i]) * k
-            w = np.exp(-u * u)
+            u = (x_out[j] - x[i]) / h
+            w = np.exp(-0.5 * u * u)
             x00 += w
             x01 += w * u
             x11 += w * u * u

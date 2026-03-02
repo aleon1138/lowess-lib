@@ -153,7 +153,7 @@ float solve_intercept(const float *x, const float *y, float x0, float h, int n)
     float k = 1.0f / h;
     for (int i = n0; i < n; ++i) {
         float u = (x0 - x[i]) * k;
-        float w2 = expf(-u * u);
+        float w2 = expf(-0.5f * u * u);
         o.x00 += w2;
         o.x01 += w2 * u;
         o.x11 += w2 * u * u;
