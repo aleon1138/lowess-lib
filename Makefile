@@ -5,7 +5,7 @@ CPPFLAGS += $(shell python3-config --includes)
 CPPFLAGS += -DNDEBUG
 
 # Sources and objects
-SRCS = lowess.cc lowesslib.cc
+SRCS = lowess.cc lowesslib.cc expectile.cc
 OBJS = $(SRCS:.cc=.o)
 
 lowesslib.so: $(OBJS)

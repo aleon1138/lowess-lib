@@ -15,6 +15,7 @@ typedef py::array_t<float, py::array::f_style | py::array::forcecast> array_t;
 float solve_intercept(const float *x, const float *y, float x0, float h, int n);
 float histogram_kernel(const float *x, float x0, float h, int n);
 float interact_kernel(const float *x, const float *y, const float *z, float z0, float h, int n);
+float solve_expectile(const float *x, const float *y, float x0, float h, float tau, int n);
 
 
 void verify(bool cond, const char *msg)
@@ -23,6 +24,7 @@ void verify(bool cond, const char *msg)
         throw std::invalid_argument(msg);
     }
 }
+
 
 /*
  * Create a new pybind array by copying the data. If you use the default ctor
@@ -335,6 +337,17 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
 }
 
 
+float expectile(array_t x, array_t y, float x0, float h, float tau)
+{
+    const int n = x.shape(0);
+    const float *p_x  = x.data(0);
+    const float *p_y  = y.data(0);
+
+    float out = solve_expectile(p_x, p_y, x0, h, tau, n);
+    return out;
+}
+
+
 PYBIND11_MODULE(lowesslib, m)
 {
     py::options options;
@@ -457,4 +470,8 @@ PYBIND11_MODULE(lowesslib, m)
           py::arg("bandwidth") = py::none(),
           py::arg("dropna") = true);
 
+    //-------------------------------------------------------------------------
+
+    m.def("expectile", &expectile, "foo", py::arg("x"), py::arg("y"), py::arg("x0"),
+          py::arg("h"), py::arg("tau"));
 }

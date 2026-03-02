@@ -6,7 +6,7 @@ module = Extension(
     extra_compile_args=["-O3", "-fopenmp", "-march=native", "-std=c++17"],
     extra_link_args=["-fopenmp"],
     include_dirs=[pybind11.get_include()],
-    sources=["lowess.cc", "lowesslib.cc"],
+    sources=["lowess.cc", "lowesslib.cc", "expectile.cc"],
 )
 
 setup(
