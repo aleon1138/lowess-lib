@@ -350,7 +350,7 @@ std::tuple<array_t,array_t> expectile(array_t x, array_t y, float tau, py::objec
     array_t xo = process_bins_array(x, bins);
 
     float h = unwrap(bandwidth, [&]() {
-        return interquartile_range(x) * 1.414f;
+        return interquartile_range(x) * 0.2f; // just a guess
     });
 
     const int    n    = x.shape(0);
