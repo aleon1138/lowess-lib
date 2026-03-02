@@ -2,8 +2,6 @@
 #include <vector>
 #include <cmath>
 
-//#include <cstdio>
-
 #include "ext/nelder_mead/nelder_mead.h"
 
 struct LossFunction {
@@ -22,11 +20,11 @@ struct LossFunction {
         }
     }
 
-    double operator () (const std::array<double,2> &theta) const
+    float operator () (const std::array<float,2> &theta) const
     {
         float theta_0 = theta[0];
         float theta_1 = theta[1];
-        double loss = 0.0;
+        double loss = 0.0; // always accumulate as double
         for (int i = 0; i < _n; ++i) {
             float e = _y[i] - (theta_0 + theta_1 * _u[i]);
             float t = e >= 0.0f? _tau : 1.0f - _tau;
@@ -44,14 +42,12 @@ float solve_expectile(const float *x, const float *y, float x0,
     // * simplex size should be interquartile range of x and y (or is it theta??)
     //   if the symplex size is indeed is in units of theta perhaps we need to
     //   run a regression first to get the units of theta
-    // * theta should be "double" type
+    // * theta should be "double" type, but if using "float", then reqmin
+    //   should be 1e-12
     // * it does not look **too** sensitive to simplex size?
+    // * it seems best to accumulate the loss function in "double" no matter what
 
     LossFunction loss(x, y, x0, h, tau, n);
-    auto out = nelder_mead<double,2>(loss, {0,0}, 1e-18, {1,1});
-
-    //fprintf(stderr, "%d %d\n", out.icount, out.numres);
-    //fflush(stderr);
-
+    auto out = nelder_mead<float,2>(loss, {0,0}, 1e-12, {1,1});
     return out.xmin[0];
 }
