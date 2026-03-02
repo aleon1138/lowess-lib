@@ -1,8 +1,10 @@
 #include <array>
 #include <vector>
 #include <cmath>
+#include <immintrin.h>
 
 #include "ext/nelder_mead/nelder_mead.h"
+float hsum(__m256 v);
 
 struct LossFunction {
     const float *_y;
@@ -20,16 +22,35 @@ struct LossFunction {
         }
     }
 
-    float operator () (const std::array<float,2> &theta) const
+
+    float operator()(const std::array<float, 2> &theta) const
     {
-        float theta_0 = theta[0];
-        float theta_1 = theta[1];
-        double loss = 0.0; // always accumulate as double
-        for (int i = 0; i < _n; ++i) {
-            float e = _y[i] - (theta_0 + theta_1 * _u[i]);
-            float t = e >= 0.0f? _tau : 1.0f - _tau;
+        __m256 v_theta_0 = _mm256_set1_ps(theta[0]);
+        __m256 v_theta_1 = _mm256_set1_ps(theta[1]);
+        __m256 v_tau     = _mm256_set1_ps(_tau);
+        __m256 v_1mtau   = _mm256_set1_ps(1.0f - _tau);
+        __m256 v_zero    = _mm256_setzero_ps();
+        __m256 v_loss    = _mm256_setzero_ps();
+
+        int i = 0;
+        for (; i <= _n - 8; i += 8) {
+            __m256 u = _mm256_loadu_ps(&_u[i]);
+            __m256 y = _mm256_loadu_ps(&_y[i]);
+            __m256 w = _mm256_loadu_ps(&_w[i]);
+            __m256 e = _mm256_sub_ps(y, _mm256_fmadd_ps(v_theta_1, u, v_theta_0));
+            __m256 mask = _mm256_cmp_ps(e, v_zero, _CMP_GE_OQ);
+            __m256 t = _mm256_blendv_ps(v_1mtau, v_tau, mask);
+            __m256 ew = _mm256_mul_ps(e, w);
+            v_loss = _mm256_fmadd_ps(t, _mm256_mul_ps(ew, ew), v_loss);
+        }
+        float loss = hsum(v_loss);
+
+        for (; i < _n; ++i) {
+            float e = _y[i] - (theta[0] + theta[1] * _u[i]);
+            float t = e >= 0.0f ? _tau : 1.0f - _tau;
             loss += t * (e * _w[i]) * (e * _w[i]);
         }
+
         return loss / _n;
     }
 };
@@ -38,15 +59,13 @@ struct LossFunction {
 float solve_expectile(const float *x, const float *y, float x0,
                       float h, float tau, int n)
 {
-    // * reqmin should remain a tiny number like 1e-18
-    // * simplex size should be interquartile range of x and y (or is it theta??)
-    //   if the symplex size is indeed is in units of theta perhaps we need to
-    //   run a regression first to get the units of theta
-    // * theta should be "double" type, but if using "float", then reqmin
-    //   should be 1e-12
-    // * it does not look **too** sensitive to simplex size?
-    // * it seems best to accumulate the loss function in "double" no matter what
-
+    /*
+     * NOTES:
+     * - `reqmin` should be a tiny number like 1e-18 for f64 or 1e-12 for f32.
+     * - the code does not seem sensitive to `step` size, perhaps because `u`
+     *   is already normalizes. A value between 0.1 and 10 seems to work.
+     * - it does seem to help to accumulate `loss` as f64
+     */
     LossFunction loss(x, y, x0, h, tau, n);
     auto out = nelder_mead<float,2>(loss, {0,0}, 1e-12, {1,1});
     return out.xmin[0];

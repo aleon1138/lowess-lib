@@ -326,7 +326,7 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
     const float *p_z  = z.data(0);
     const float *p_zi = zi.data(0);
 
-    py::array_t<float> bi = py::array_t<float>(m);
+    array_t bi(m);
     float *p_bi = bi.mutable_data(0);
 
     parallel_apply(m, [&](int i) {
@@ -337,14 +337,22 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
 }
 
 
-float expectile(array_t x, array_t y, float x0, float h, float tau)
+array_t expectile(array_t x, array_t y, array_t bins, float h, float tau)
 {
     const int n = x.shape(0);
+    const int m = bins.shape(0);
     const float *p_x  = x.data(0);
     const float *p_y  = y.data(0);
+    const float *p_xo = bins.data(0);
 
-    float out = solve_expectile(p_x, p_y, x0, h, tau, n);
-    return out;
+    array_t yo(m);
+    float *p_yo = yo.mutable_data(0);
+
+    parallel_apply(m, [&](int i) {
+        p_yo[i] = solve_expectile(p_x, p_y, p_xo[i], h, tau, n);
+    });
+
+    return yo;
 }
 
 
@@ -472,6 +480,8 @@ PYBIND11_MODULE(lowesslib, m)
 
     //-------------------------------------------------------------------------
 
-    m.def("expectile", &expectile, "foo", py::arg("x"), py::arg("y"), py::arg("x0"),
+    m.def("expectile", &expectile,
+          R"pbdoc()pbdoc",
+          py::arg("x"), py::arg("y"), py::arg("bins"),
           py::arg("h"), py::arg("tau"));
 }
