@@ -1,5 +1,6 @@
 import unittest
 import timeit
+import scipy.optimize
 import numpy as np
 import sys
 
@@ -15,6 +16,30 @@ def generate_data(n):
     z = np.abs(np.random.randn(n)).astype("f")
     y = x * z + np.random.randn(n).astype("f")
     return x, y, z
+
+
+def lowess_quantile_1(x, y, bins, tau, h):
+
+    def _loss(theta, x, y, tau):
+        w = np.exp(-0.5 * np.square(x))
+        e = theta[0] + theta[1] * x - y
+        tau = np.where(e >= 0.0, 1.0 - tau, tau)
+        return (tau * np.square(e * w)).mean()
+
+    yi = np.zeros(len(bins))
+    for i in range(len(bins)):
+        res = scipy.optimize.minimize(
+            _loss,
+            x0=np.zeros(2),
+            args=((x - bins[i]) / h, y, tau),
+            method="Nelder-Mead",
+        )
+        yi[i] = res.x[0]
+    return bins, yi
+
+
+def lowess_quantile_2(x, y, bins, tau, h):
+    return low2.expectile(x, y, tau, bins, h)
 
 
 class TestLowess(unittest.TestCase):
@@ -36,6 +61,17 @@ class TestLowess(unittest.TestCase):
         # AVX implementation for `exp(x)` is only an approximation
         self.assertTrue((a[0] - b[0]).std() < 1e-9)
         self.assertTrue((a[1] - b[1]).std() < 1e-2)
+
+    def test_expectile(self):
+        x = np.random.randn(8 * 1234 + 7)
+        y = np.maximum(-x, 0) + np.random.randn(len(x)) * np.maximum(x / 2, 0.2)
+        x = x.astype("f")
+        y = y.astype("f")
+
+        bins = np.linspace(-2, 2, 20)
+        a = lowess_quantile_1(x, y, bins, 0.75, 0.1)
+        b = lowess_quantile_2(x, y, bins, 0.75, 0.1)
+        self.assertTrue((a[1] - b[1]).std() < 1e-3)
 
 
 def benchmark():

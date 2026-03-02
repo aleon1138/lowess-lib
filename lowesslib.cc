@@ -337,13 +337,27 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
 }
 
 
-array_t expectile(array_t x, array_t y, array_t bins, float h, float tau)
+std::tuple<array_t,array_t> expectile(array_t x, array_t y, float tau, py::object bins,
+                                      std::optional<float> bandwidth, bool dropna)
 {
-    const int n = x.shape(0);
-    const int m = bins.shape(0);
+    x = verify_1d_contiguous(x, "x");
+    y = verify_1d_contiguous(y, "y");
+    if (dropna) {
+        auto out = drop_any_nans({x,y});
+        x = std::move(out[0]);
+        y = std::move(out[1]);
+    }
+    array_t xo = process_bins_array(x, bins);
+
+    float h = unwrap(bandwidth, [&]() {
+        return interquartile_range(x) * 1.414f;
+    });
+
+    const int    n    = x.shape(0);
+    const int    m    = xo.shape(0);
     const float *p_x  = x.data(0);
     const float *p_y  = y.data(0);
-    const float *p_xo = bins.data(0);
+    const float *p_xo = xo.data(0);
 
     array_t yo(m);
     float *p_yo = yo.mutable_data(0);
@@ -352,7 +366,7 @@ array_t expectile(array_t x, array_t y, array_t bins, float h, float tau)
         p_yo[i] = solve_expectile(p_x, p_y, p_xo[i], h, tau, n);
     });
 
-    return yo;
+    return std::make_tuple(xo, yo);
 }
 
 
@@ -481,7 +495,45 @@ PYBIND11_MODULE(lowesslib, m)
     //-------------------------------------------------------------------------
 
     m.def("expectile", &expectile,
-          R"pbdoc()pbdoc",
-          py::arg("x"), py::arg("y"), py::arg("bins"),
-          py::arg("h"), py::arg("tau"));
+          R"pbdoc(expectile(x, y, tau, bins=100, bandwidth=None, dropna=True)
+
+    LOWESS smoothing via expectile regression.
+
+    Fits a locally weighted expectile curve to the data, generalizing
+    standard LOWESS smoothing. When `tau=0.5` this is equivalent to
+    locally weighted least squares regression.
+
+    Parameters
+    ----------
+    x : array_like, shape (N,)
+        Independent variable.
+
+    y : array_like, shape (N,)
+        Dependent variable.
+
+    tau : float
+        Expectile level in the range (0, 1). Values below 0.5 fit the
+        lower tail, values above 0.5 fit the upper tail.
+
+    bins : int or sequence of scalars, optional
+        If an integer, specifies the number of quantiles in `x` to use as
+        interpolation points. If a sequence, it is treated as the exact
+        interpolation point locations.
+
+    bandwidth : float, optional
+        Kernel bandwidth for smoothing, in the same units as `x`.
+
+    dropna : bool, optional
+        Remove all NaN's and Inf's from the data. This will make a copy.
+
+    Returns
+    -------
+    xi : ndarray
+        Interpolation point locations in `x`.
+
+    yi : ndarray
+        Estimated expectile curve evaluated at `xi`.)pbdoc",
+          py::arg("x"), py::arg("y"), py::arg("tau"),
+          py::arg("bins") = 100, py::arg("bandwidth") = py::none(),
+          py::arg("dropna") = true);
 }
