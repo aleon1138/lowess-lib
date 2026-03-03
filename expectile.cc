@@ -66,7 +66,9 @@ float solve_expectile(const float *x, const float *y, float x0,
      *   is already normalizes. A value between 0.1 and 10 seems to work.
      * - it does seem to help to accumulate `loss` as f64
      */
+    float tol = 1e-6;
+    int maxiter = 400;
     LossFunction loss(x, y, x0, h, tau, n);
-    auto out = nelder_mead<float,2>(loss, {0,0}, 1e-12, {1,1});
+    auto out = nelder_mead<float,2>(loss, {0,0}, tol*tol, {1,1}, 1, maxiter);
     return out.xmin[0];
 }
