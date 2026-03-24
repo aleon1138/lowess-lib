@@ -4,24 +4,39 @@ Highly optimized LOWESS utilities for Python
 This is a small python library for evaluating local regression, also known as
 Locally Weighted Scatterplot Smoothing ([LOWESS](https://en.wikipedia.org/wiki/Local_regression)).
 
-To acheive the best performance I'm making use of [OpenMP](www.openmp.org) and
-[AVX](https://en.wikipedia.org/wiki/AVX-512) instructions.
+It uses [OpenMP](https://www.openmp.org) and [AVX](https://en.wikipedia.org/wiki/AVX-512)
+instructions for best performance.
+
+For computing `expectile` it makes use of a third-party Nelder-Mead solver,
+available via a git submodule.
 
 ## Requirements
 
-* [pybind11](https://github.com/pybind/pybind11) - for the C++ to python interface
+* A C++17 compiler
+* [OpenMP](https://www.openmp.org)
+* [pybind11](https://github.com/pybind/pybind11)
 
 ## Installation
 
-Note that we use git submodules for the Nelder-Mead solver.
-```
+This repo uses a git submodule for the Nelder-Mead solver, so make sure to
+clone recursively:
+
+```bash
 git clone --recurse-submodules <repo-url>
+cd lowesslib
 pip install .
+```
+
+If you've already cloned without `--recurse-submodules`, you can fetch it after
+the fact with:
+
+```bash
+git submodule update --init
 ```
 
 ## Performance
 
-We can compare performance with the `smoothers_lowess` module from
+Here's a comparison against the `smoothers_lowess` module from
 [statsmodels](https://www.statsmodels.org/dev/generated/statsmodels.nonparametric.smoothers_lowess.lowess.html#).
 
 ```python
@@ -37,7 +52,7 @@ xi = np.linspace(-2*np.pi, 2*np.pi, 100)
 %timeit lowesslib.smooth(x, y, xi, bandwidth=0.4)
 ```
 
-Results are quite dramatic, over 20,000 times faster than `statsmodels`.
+On this benchmark, `lowesslib` is over 20,000 times faster than `statsmodels`.
 
 ```
 statsmodels:
@@ -47,19 +62,11 @@ lowesslib:
 99.5 µs ± 1.37 µs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)
 ```
 
-### Comparison with Numba
+## Dropping NaNs
 
-How does this compare against multi-threaded `numba`? We were able to outperform
-it by order of magnitude (with dropna=False). There is a discontinuity at
-100,000 items due to the maximum size of the sort needed for the
-estimation of interpolation locations and bandwidth (see `MAX_SIZE` in
-`subsample_sort`). This could be optimized further in the future.
+By default, `lowesslib` checks for and drops NaNs and Infs. This can slow things
+down for large datasets, so you can disable this with `dropna=False`.
 
-![figure_3](img/Figure_3.png)
-
-## Dropping NAN's
-The default behaviour is to automatically check for and drop NAN's and INF's.
-This can slow things down for large datasets so there is an option to disable.
 ```python
 n = 10_000_000
 x = np.random.randn(n)
@@ -74,11 +81,21 @@ y = x + np.random.randn(n)
 # Wall time: 162 ms
 ```
 
+## Comparison with Numba
+
+How does this compare against multi-threaded `numba`? We outperform it by an
+order of magnitude. For this test we disabled checks for NaNs. There's a
+visible discontinuity at 100,000 items, caused by the maximum size of the sort
+used for estimating interpolation locations and bandwidth (see `MAX_SIZE` in
+`subsample_sort`). This could be optimized further.
+
+![figure_3](img/Figure_3.png)
+
 ## Examples
 
 ### Kernel Smoothing
 
-For the `smooth` example above we get the following results:
+For the `smooth` example above, here's what the output looks like:
 
 ```python
 figure(figsize=(5,3.5))
