@@ -13,7 +13,9 @@ To acheive the best performance I'm making use of [OpenMP](www.openmp.org) and
 
 ## Installation
 
+Note that we use git submodules for the Nelder-Mead solver.
 ```
+git clone --recurse-submodules <repo-url>
 pip install .
 ```
 
