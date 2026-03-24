@@ -130,8 +130,8 @@ y = np.maximum(2-x, 0) + np.random.normal(scale=x/4, size=10_000)
 
 figure(figsize=(5,3.5))
 plot(x, y, '.', ms=1)
-plot(*lowesslib.expectile(x,y,bandwidth=0.3, tau=0.1), color='r')
-plot(*lowesslib.expectile(x,y,bandwidth=0.3, tau=0.9), color='r')
+plot(*lowesslib.expectile(x, y, bandwidth=0.3, tau=0.1), color='r')
+plot(*lowesslib.expectile(x, y, bandwidth=0.3, tau=0.9), color='r')
 tight_layout()
 ```
 ![figure_4](img/Figure_4.png)
