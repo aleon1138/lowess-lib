@@ -1,4 +1,4 @@
-CXXFLAGS += -O3 -Wall -std=c++17 -march=native -fopenmp -fPIC
+CXXFLAGS += -O3 -Wall -std=c++17 -fopenmp -mavx2 -mfma -fPIC
 
 CPPFLAGS += $(shell python3 -m pybind11 --includes)
 CPPFLAGS += $(shell python3-config --includes)

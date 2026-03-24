@@ -5,7 +5,7 @@ ext_modules = [
     Pybind11Extension(
         "lowesslib",
         sources=["lowess.cc", "lowesslib.cc", "expectile.cc"],
-        extra_compile_args=["-O3", "-fopenmp", "-march=native"],
+        extra_compile_args=["-O3", "-fopenmp", "-mavx2", "-mfma"],
         extra_link_args=["-fopenmp"],
         cxx_std=17,
     ),
