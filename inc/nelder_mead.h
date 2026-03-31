@@ -100,7 +100,12 @@ nelder_mead_result<real,n> nelder_mead(
     int kcount = INT_MAX
 )
 {
-    // Standard Nelder-Mead coefficients.
+    // Standard Nelder-Mead coefficients (fixed, as in O'Neill 1971).
+    // Gao & Han (2012) propose dimension-adaptive versions:
+    //   expansion  = 1 + 2/n,  contraction = 0.75 - 1/(2n),  shrink = 1 - 1/n
+    // For n=2 the adaptive values collapse to exactly these constants, so the
+    // two formulations are equivalent for the 2-parameter expectile problem.
+    // For n >> 2 the Gao-Han coefficients converge faster.
     const real contraction   = 0.5;
     const real expansion     = 2.0;
     const real reflection    = 1.0;
@@ -254,6 +259,11 @@ nelder_mead_result<real,n> nelder_mead(
                         fval[worst] = contracted_val;
                     }
                     else {
+                        // O'Neill (1971) deviation from modern Nelder-Mead: accept the
+                        // reflection rather than performing a full shrink.  Modern
+                        // implementations (Gao & Han 2012) always shrink here, which
+                        // gives stronger convergence guarantees but costs n extra
+                        // function evaluations.
                         p[worst] = pstar;
                         fval[worst] = reflected_val;
                     }
