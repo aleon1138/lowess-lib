@@ -15,10 +15,10 @@ name = "lowesslib"
 version = "0.2.2"
 description = "Utilities for Locally Weighted Scatterplot Smoothing"
 readme = "README.md"
-requires-python = ">=3.10"
 authors = [
     { name = "Arnaldo Leon", email = "amleon@alum.mit.edu" },
 ]
+requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.18",
 ]

@@ -1,3 +1,0 @@
-[submodule "ext/nelder_mead"]
-	path = ext/nelder_mead
-	url = git@github.com:aleon1138/nelder-mead.git

@@ -38,11 +38,12 @@ def _solve_intercept(x, y, x_out, h):
         for i in range(len(x)):
             u = (x[i] - x_out[j]) / h
             w = np.exp(-0.5 * u * u)
-            x00 += w
-            x01 += w * u
-            x11 += w * u * u
-            xy0 += w * y[i]
-            xy1 += w * y[i] * u
+            w2 = w * w
+            x00 += w2
+            x01 += w2 * u
+            x11 += w2 * u * u
+            xy0 += w2 * y[i]
+            xy1 += w2 * y[i] * u
 
         numer = x11 * xy0 - x01 * xy1
         denom = x00 * x11 - x01 * x01

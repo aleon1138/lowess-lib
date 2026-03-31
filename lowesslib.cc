@@ -9,7 +9,7 @@
 
 namespace py = pybind11;
 
-// Force arrays to be column-contiguous and cast to float
+// Force arrays to be Fortran-style (contiguous) and cast to float
 typedef py::array_t<float, py::array::f_style | py::array::forcecast> array_t;
 
 float solve_intercept(const float *x, const float *y, float x0, float h, int n);
@@ -100,6 +100,7 @@ array_t generate_bins(const float *x, int n, int num_bins)
 }
 
 
+// TODO: fix divide-by-zero when num_bins == 1 (slope = (y1-y0)/0 produces NaN)
 array_t generate_linear_bins(const float *x, int n, int num_bins)
 {
     std::pair minmax = std::minmax_element(x, x+n);
@@ -115,7 +116,7 @@ array_t generate_linear_bins(const float *x, int n, int num_bins)
 }
 
 /*
- * Take two arrays and drop any rows from both if any have NAN's
+ * Take two arrays and drop any rows from both if any have NaN's or Inf's
  */
 std::vector<array_t> drop_any_nans(const std::vector<array_t> &xy)
 {
@@ -166,7 +167,7 @@ std::vector<array_t> drop_any_nans(const std::vector<array_t> &xy)
 
 
 /*
- * If `bins` is a scalar, generate the interpolation points along `x`. Otherwise
+ * If `bins` is an integer, generate the interpolation points along `x`. Otherwise
  * simply return `bins` after performing some validation.
  *
  * TODO - we're sorting the `x` array twice, one for generating bins and again
@@ -283,8 +284,8 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
     const float *p_b = bin_array.data(0);
 
     float h = unwrap(bandwidth, [&]() {
-        float A = interquartile_range(x) / 1.349f;  // Eq (3.3)
-        float h = 0.9f * A / sqrtf(m);              // Eq (3.2)
+        float A = interquartile_range(x) / 1.349f;        // Eq (3.3)
+        float h = 0.9f * A / powf(float(n), 0.2f);        // Eq (3.2)
         if (h == 0) {
             auto [min, max] = std::minmax_element(x.data(), x.data()+x.size());
             h = (*max - *min) * 0.1; // desperate guess
@@ -373,7 +374,7 @@ std::tuple<array_t,array_t> expectile(array_t x, array_t y, float tau, py::objec
 PYBIND11_MODULE(lowesslib, m)
 {
     py::options options;
-    options.disable_function_signatures(); // Disable auto-generated
+    options.disable_function_signatures(); // Disable auto-generated function signatures
 
     m.doc() = "LOWESS: Locally Weighted Scatter plot Smoothing";
 

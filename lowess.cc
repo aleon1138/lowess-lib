@@ -75,8 +75,8 @@ coeff_t solve_intercept_simd(const float *x_, const float *y_, float x0_, float 
         __m256 y   = _mm256_loadu_ps(y_+i);
         __m256 u   = _mm256_mul_ps(_mm256_sub_ps(x0, x), k);
         __m256 w   = _mm256_gauss_kernel_ps(u);
-        __m256 w2  = _mm256_mul_ps(w,w);
-        __m256 w2u = _mm256_mul_ps(w2,u);
+        __m256 w2  = _mm256_mul_ps(w, w);
+        __m256 w2u = _mm256_mul_ps(w2, u);
 
         x00 = _mm256_add_ps  (w2,     x00);
         x01 = _mm256_fmadd_ps(w2,  u, x01);
@@ -152,8 +152,9 @@ float solve_intercept(const float *x, const float *y, float x0, float h, int n)
 
     float k = 1.0f / h;
     for (int i = n0; i < n; ++i) {
-        float u = (x0 - x[i]) * k;
-        float w2 = expf(-0.5f * u * u);
+        float u  = (x0 - x[i]) * k;
+        float w  = expf(-0.5f * u * u);
+        float w2 = w * w;
         o.x00 += w2;
         o.x01 += w2 * u;
         o.x11 += w2 * u * u;

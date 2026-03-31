@@ -3,7 +3,7 @@
 #include <cmath>
 #include <immintrin.h>
 
-#include "ext/nelder_mead/nelder_mead.h"
+#include "inc/nelder_mead.h"
 float hsum(__m256 v);
 
 struct LossFunction {
@@ -63,8 +63,8 @@ float solve_expectile(const float *x, const float *y, float x0,
      * NOTES:
      * - `reqmin` should be a tiny number like 1e-18 for f64 or 1e-12 for f32.
      * - the code does not seem sensitive to `step` size, perhaps because `u`
-     *   is already normalizes. A value between 0.1 and 10 seems to work.
-     * - it does seem to help to accumulate `loss` as f64
+     *   is already normalized. A value between 0.1 and 10 seems to work.
+     * - accumulating `loss` as f64 may improve precision (not currently done)
      */
     float tol = 1e-6;
     int maxiter = 400;

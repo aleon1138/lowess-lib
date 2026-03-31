@@ -7,8 +7,9 @@ Locally Weighted Scatterplot Smoothing ([LOWESS](https://en.wikipedia.org/wiki/L
 It uses [OpenMP](https://www.openmp.org) and [AVX](https://en.wikipedia.org/wiki/AVX-512)
 instructions for best performance.
 
-For computing `expectile` it makes use of a third-party Nelder-Mead solver,
-available via a git submodule.
+For computing `expectile` it makes use of a third-party Nelder-Mead solver.
+`ext/nelder_mead/` contains [nelder-mead](https://github.com/develancer/nelder-mead)
+by O'Neill, Burkardt, Różański, distributed under LGPL v3.
 
 ## Requirements
 
@@ -18,20 +19,10 @@ available via a git submodule.
 
 ## Installation
 
-This repo uses a git submodule for the Nelder-Mead solver, so make sure to
-clone recursively:
-
 ```bash
-git clone --recurse-submodules <repo-url>
+git clone <repo-url>
 cd lowesslib
 pip install .
-```
-
-If you've already cloned without `--recurse-submodules`, you can fetch it after
-the fact with:
-
-```bash
-git submodule update --init
 ```
 
 ## Performance
