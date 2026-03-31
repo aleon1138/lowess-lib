@@ -433,10 +433,10 @@ PYBIND11_MODULE(lowesslib, m)
 
     bandwidth : float, optional
         Kernel bandwidth for smoothing, in the same units as `x`.
-        Defaults to 1.41 times the interquartile range (IQR) of `x`.
+        Defaults to 1.414 times the interquartile range (IQR) of `x`.
 
-    dropna: bool, optional
-        Remove all NAN's and INF's from the data. This will make a copy.
+    dropna : bool, optional
+        Remove all NaN's and Inf's from the data. This will make a copy.
 
     Returns
     -------
@@ -462,15 +462,15 @@ PYBIND11_MODULE(lowesslib, m)
     x : array_like, shape (N,)
         Input data. The histogram is computed over the entire array.
 
-    bins : int or sequence of scalars
+    bins : int or sequence of scalars, optional
         If an integer, specifies the number of bins to use. If a sequence, it
         should be a monotonically increasing array of bin center locations.
 
     bandwidth : float, optional
         Kernel bandwidth for smoothing, in the same units as `x`.
 
-    dropna: bool, optional
-        Remove all NAN's and INF's from the data. This will make a copy.
+    dropna : bool, optional
+        Remove all NaN's and Inf's from the data. This will make a copy.
 
     Returns
     -------
@@ -514,8 +514,8 @@ PYBIND11_MODULE(lowesslib, m)
     bandwidth : float, optional
         Kernel bandwidth for smoothing, in the same units as `z`.
 
-    dropna: bool, optional
-        Remove all NAN's and INF's from the data. This will make a copy.
+    dropna : bool, optional
+        Remove all NaN's and Inf's from the data. This will make a copy.
 
     Returns
     -------
