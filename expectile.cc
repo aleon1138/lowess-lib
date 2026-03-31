@@ -8,19 +8,13 @@ float hsum(__m256 v);
 
 struct LossFunction {
     const float *_y;
+    const float *_w;
+    const float *_u;
     const float _tau;
     const int _n;
-    std::vector<float> _w;
-    std::vector<float> _u;
 
-    LossFunction(const float *x, const float *y, float x0, float h, float tau, int n)
-        : _y(y), _tau(tau), _n(n), _w(n), _u(n)
-    {
-        for (int i = 0; i < _n; ++i) {
-            _u[i] = (x[i] - x0) / h;
-            _w[i] = expf(-0.5f * _u[i] * _u[i]);
-        }
-    }
+    LossFunction(const float *y, float tau, int n, const float *u, const float *w)
+        : _y(y), _w(w), _u(u), _tau(tau), _n(n) {}
 
 
     float operator()(const std::array<float, 2> &theta) const
@@ -66,9 +60,21 @@ float solve_expectile(const float *x, const float *y, float x0,
      *   is already normalized. A value between 0.1 and 10 seems to work.
      * - accumulating `loss` as f64 may improve precision (not currently done)
      */
+    thread_local std::vector<float> u_buf, w_buf;
+    if ((int)u_buf.size() < n) {
+        u_buf.resize(n);
+        w_buf.resize(n);
+    }
+
+    const float k = 1.0f / h;
+    for (int i = 0; i < n; ++i) {
+        u_buf[i] = (x[i] - x0) * k;
+        w_buf[i] = expf(-0.5f * u_buf[i] * u_buf[i]);
+    }
+
     float tol = 1e-6;
     int maxiter = 400;
-    LossFunction loss(x, y, x0, h, tau, n);
+    LossFunction loss(y, tau, n, u_buf.data(), w_buf.data());
     auto out = nelder_mead<float,2>(loss, {0,0}, tol*tol, {1,1}, 1, maxiter);
     return out.xmin[0];
 }

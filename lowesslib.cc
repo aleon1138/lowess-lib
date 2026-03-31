@@ -79,24 +79,34 @@ std::vector<float> subsample_sort(const float *x, size_t n)
 }
 
 
-float interquartile_range(const array_t &x)
+float iqr_from_sorted(const std::vector<float> &x_sort)
 {
-    std::vector<float> x_sort = subsample_sort(x.data(), x.size());
     const int n = x_sort.size();
     verify(n > 0, "empty vector for range");
     return x_sort[n*3/4] - x_sort[n/4];
 }
 
 
-array_t generate_bins(const float *x, int n, int num_bins)
+float interquartile_range(const array_t &x)
 {
-    std::vector<float> sorted_x = subsample_sort(x, n);
+    return iqr_from_sorted(subsample_sort(x.data(), x.size()));
+}
+
+
+array_t generate_bins(const std::vector<float> &sorted_x, int num_bins)
+{
     std::vector<float> out(num_bins);
     const float slope = float(sorted_x.size() - 1) / float(num_bins + 1);
     for (int i = 0; i < num_bins; ++i) {
         out[i] = sorted_x[std::round(float(i + 1) * slope)];
     }
     return new_array_t(out.size(), out.data());
+}
+
+
+array_t generate_bins(const float *x, int n, int num_bins)
+{
+    return generate_bins(subsample_sort(x, n), num_bins);
 }
 
 
@@ -174,14 +184,23 @@ std::vector<array_t> drop_any_nans(const std::vector<array_t> &xy)
  *        for calculating the bandwidth. We should sub-sample by 1/10 for large
  *        arrays and/or look at parallelized versions
  */
-array_t process_bins_array(const array_t &x, py::object bins, bool linear=false)
+array_t process_bins_array(const array_t &x, py::object bins,
+                           std::optional<std::vector<float>> *sorted_cache = nullptr,
+                           bool linear = false)
 {
     array_t bin_array;
     if (py::isinstance<py::int_>(bins)) {
         const float *p = x.data();
         int n = x.shape(0);
         int m = std::min(bins.cast<int>(), n);
-        bin_array = linear? generate_linear_bins(p, n, m) : generate_bins(p, n, m);
+        if (linear) {
+            bin_array = generate_linear_bins(p, n, m);
+        } else if (sorted_cache) {
+            if (!*sorted_cache) *sorted_cache = subsample_sort(p, n);
+            bin_array = generate_bins(**sorted_cache, m);
+        } else {
+            bin_array = generate_bins(p, n, m);
+        }
     }
     else {
         bin_array = py::array::ensure(bins).squeeze();
@@ -243,7 +262,8 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
         y = std::move(out[1]);
     }
 
-    array_t x_out = process_bins_array(x, bins);
+    std::optional<std::vector<float>> sorted_x;
+    array_t x_out = process_bins_array(x, bins, &sorted_x);
     const float *pxi = x_out.data(0);
     const float *px  = x.data(0);
     const float *py  = y.data(0);
@@ -254,7 +274,8 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
     float *pyi = y_out.mutable_data(0);
 
     float h = unwrap(bandwidth, [&]() {
-        return interquartile_range(x) * 1.414f;
+        if (!sorted_x) sorted_x = subsample_sort(px, n);
+        return iqr_from_sorted(*sorted_x) * 1.414f;
     });
 
     parallel_apply(m, [&](int i) {
@@ -274,7 +295,7 @@ std::tuple<array_t,array_t> histogram(array_t x, py::object bins,
         x = std::move(drop_any_nans({x})[0]);
     }
 
-    array_t bin_array = process_bins_array(x, bins, true);
+    array_t bin_array = process_bins_array(x, bins, nullptr, true);
     int n = x.shape(0);
     int m = bin_array.shape(0);
     py::array_t<float> y = py::array_t<float>(m);
@@ -314,12 +335,14 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
         z = std::move(out[2]);
     }
 
-    array_t zi = process_bins_array(z, bins);
+    std::optional<std::vector<float>> sorted_z;
+    array_t zi = process_bins_array(z, bins, &sorted_z);
     const int n = x.shape(0);
     const int m = zi.shape(0);
 
     float h = unwrap(bandwidth, [&]() {
-        return interquartile_range(z) * 0.2f; // not sure what value to use here
+        if (!sorted_z) sorted_z = subsample_sort(z.data(0), z.shape(0));
+        return iqr_from_sorted(*sorted_z) * 0.2f; // not sure what value to use here
     });
 
     const float *p_x  = x.data(0);
@@ -348,10 +371,12 @@ std::tuple<array_t,array_t> expectile(array_t x, array_t y, float tau, py::objec
         x = std::move(out[0]);
         y = std::move(out[1]);
     }
-    array_t xo = process_bins_array(x, bins);
+    std::optional<std::vector<float>> sorted_x;
+    array_t xo = process_bins_array(x, bins, &sorted_x);
 
     float h = unwrap(bandwidth, [&]() {
-        return interquartile_range(x) * 0.2f; // just a guess
+        if (!sorted_x) sorted_x = subsample_sort(x.data(0), x.shape(0));
+        return iqr_from_sorted(*sorted_x) * 0.2f; // just a guess
     });
 
     const int    n    = x.shape(0);
