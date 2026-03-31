@@ -64,9 +64,3 @@ The key performance techniques:
 - Arrays larger than `MAX_SIZE` (100,000) are sub-sampled before sorting to
   avoid the O(n log n) bottleneck
 
-## Experimental Rust Binding
-
-`ext/rust/` contains an alternative PyO3-based binding (separate
-`pyproject.toml`, built with `maturin`). It has its own CI in
-`ext/rust/.github/workflows/CI.yml` targeting multi-platform wheel builds. The
-main project has no CI configured.

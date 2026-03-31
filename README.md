@@ -8,7 +8,7 @@ It uses [OpenMP](https://www.openmp.org) and [AVX](https://en.wikipedia.org/wiki
 instructions for best performance.
 
 For computing `expectile` it makes use of a third-party Nelder-Mead solver.
-`ext/nelder_mead/` contains [nelder-mead](https://github.com/develancer/nelder-mead)
+`inc/nelder_mead.h` contains [nelder-mead](https://github.com/develancer/nelder-mead)
 by O'Neill, Burkardt, Różański, distributed under LGPL v3.
 
 ## Requirements

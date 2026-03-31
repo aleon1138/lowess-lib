@@ -126,7 +126,7 @@ array_t generate_linear_bins(const float *x, int n, int num_bins)
 }
 
 /*
- * Take two arrays and drop any rows from both if any have NaN's or Inf's
+ * Drop rows from all input arrays where any value is NaN or Inf
  */
 std::vector<array_t> drop_any_nans(const std::vector<array_t> &xy)
 {
@@ -195,10 +195,14 @@ array_t process_bins_array(const array_t &x, py::object bins,
         int m = std::min(bins.cast<int>(), n);
         if (linear) {
             bin_array = generate_linear_bins(p, n, m);
-        } else if (sorted_cache) {
-            if (!*sorted_cache) *sorted_cache = subsample_sort(p, n);
+        }
+        else if (sorted_cache) {
+            if (!*sorted_cache) {
+                *sorted_cache = subsample_sort(p, n);
+            }
             bin_array = generate_bins(**sorted_cache, m);
-        } else {
+        }
+        else {
             bin_array = generate_bins(p, n, m);
         }
     }
@@ -274,8 +278,10 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
     float *pyi = y_out.mutable_data(0);
 
     float h = unwrap(bandwidth, [&]() {
-        if (!sorted_x) sorted_x = subsample_sort(px, n);
-        return iqr_from_sorted(*sorted_x) * 1.414f;
+        if (!sorted_x) {
+            sorted_x = subsample_sort(px, n);
+        }
+        return iqr_from_sorted(*sorted_x) * 1.414f; // sqrt(2) * IQR, heuristic
     });
 
     parallel_apply(m, [&](int i) {
@@ -341,8 +347,10 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
     const int m = zi.shape(0);
 
     float h = unwrap(bandwidth, [&]() {
-        if (!sorted_z) sorted_z = subsample_sort(z.data(0), z.shape(0));
-        return iqr_from_sorted(*sorted_z) * 0.2f; // not sure what value to use here
+        if (!sorted_z) {
+            sorted_z = subsample_sort(z.data(0), z.shape(0));
+        }
+        return iqr_from_sorted(*sorted_z) * 0.2f; // heuristic, not tuned
     });
 
     const float *p_x  = x.data(0);
@@ -375,8 +383,10 @@ std::tuple<array_t,array_t> expectile(array_t x, array_t y, float tau, py::objec
     array_t xo = process_bins_array(x, bins, &sorted_x);
 
     float h = unwrap(bandwidth, [&]() {
-        if (!sorted_x) sorted_x = subsample_sort(x.data(0), x.shape(0));
-        return iqr_from_sorted(*sorted_x) * 0.2f; // just a guess
+        if (!sorted_x) {
+            sorted_x = subsample_sort(x.data(0), x.shape(0));
+        }
+        return iqr_from_sorted(*sorted_x) * 0.2f; // heuristic, not tuned
     });
 
     const int    n    = x.shape(0);

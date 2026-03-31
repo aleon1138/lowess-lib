@@ -21,7 +21,7 @@ unit_test: test_nelder_mead.cc
 	$(CXX) $(CXXFLAGS) -o $@ $< -lgtest -lgtest_main
 
 format:
-	astyle -A4 -S -z2 -n -j *.cc include/*.h
+	astyle -A4 -S -z2 -n -j *.cc inc/*.h
 
 clean:
 	rm -rf build dist lowesslib.egg-info lowesslib.so $(OBJS) unit_test

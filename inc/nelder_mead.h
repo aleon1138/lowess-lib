@@ -7,20 +7,20 @@
  *
  *    This routine seeks the minimum value of a user-specified function.
  *
- *    Simplex function minimisation procedure due to Nelder+Mead(1965),
- *    as implemented by O'Neill(1971, Appl.Statist. 20, 338-45), with
- *    subsequent comments by Chambers+Ertel(1974, 23, 250-1), Benyon(1976,
- *    25, 97) and Hill(1978, 27, 380-2).
+ *    Simplex function minimisation procedure due to Nelder+Mead (1965), as
+ *    implemented by O'Neill (1971, Appl.Statist. 20, 338-45), with subsequent
+ *    comments by Chambers+Ertel (1974, 23, 250-1), Benyon (1976, 25, 97) and
+ *    Hill (1978, 27, 380-2).
  *
- *    The function to be minimized must be defined by a function(al) of
- *    the form
+ *    The function to be minimized must be defined by a function(al) of the
+ *    form
  *
  *      real fn ( const std::array<real,n>& x )
  *
  *    where "real" can be any floating-point type, e.g. double.
  *
- *    This routine does not include a termination test using the
- *    fitting of a quadratic surface.
+ *    This routine does not include a termination test using the fitting of a
+ *    quadratic surface.
  *
  *  Licensing:
  *
@@ -28,14 +28,14 @@
  *
  *  Author:
  *
- *    Original FORTRAN77 version by R ONeill.
+ *    Original FORTRAN77 version by R O'Neill (1971)
  *    C version by John Burkardt (last modified 28 October 2010).
- *    Port to modern C++ by Piotr Różański. Numerical behaviour unchanged; changes restricted to secondary issues:
- *    a) output variables moved to returned struct type
- *    b) function is now passed as std::function which allows using objects as well as traditional functions
- *    c) floating-point type and number of variables are now template arguments
- *    d) std::array is now used instead of pointers to raw arrays
- *    e) overall comments and code formatting
+ *    Port to modern C++ by Piotr Różański. Numerical behaviour unchanged:
+ *      - output variables moved to returned struct type
+ *      - function is passed as std::function
+ *      - floating-point type and number of variables are now template arguments
+ *      - std::array is now used instead of pointers to raw arrays
+ *      - overall comments and code formatting
  *
  *  Reference:
  *
@@ -49,8 +49,9 @@
  *    Function Minimization Using a Simplex Procedure,
  *    Applied Statistics,
  *    Volume 20, Number 3, 1971, pages 338-345.
+ *    https://doi.org/10.2307/2346772
  *
- *    This C++ version is available at
+ *    Sonnet 4.6 generated this version using the source from:
  *    https://github.com/develancer/nelder-mead/
  */
 #ifndef PTR_NELDER_MEAD_H

@@ -57,7 +57,7 @@ float hsum(__m256 v)
 
 
 /*
- *  Perform LOWESS with SIMD extensions
+ *  Accumulate the weighted normal-equation sums for local linear regression using SIMD
  */
 coeff_t solve_intercept_simd(const float *x_, const float *y_, float x0_, float h, int n)
 {
