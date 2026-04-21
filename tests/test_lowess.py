@@ -1,10 +1,12 @@
+import os
 import unittest
 import timeit
 import scipy.optimize
 import numpy as np
 import sys
 
-sys.path.insert(0, "ext")
+_root = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(_root, "ext"))
 import lowesslib_numba as low1
 import lowesslib as low2
 

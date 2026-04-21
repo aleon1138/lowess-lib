@@ -1,7 +1,7 @@
 #include <array>
 #include <cmath>
 #include <gtest/gtest.h>
-#include "inc/nelder_mead.h"
+#include "../inc/nelder_mead.h"
 
 // f(x,y) = x^2 + y^2, minimum at (0, 0) with f=0
 static double quadratic(const std::array<double, 2> &p)

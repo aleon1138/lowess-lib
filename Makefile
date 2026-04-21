@@ -14,10 +14,11 @@ lowesslib.so: $(OBJS)
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
-test: unit_test
+test: lowesslib.so unit_test
+	python -m pytest tests/ -v
 	./unit_test
 
-unit_test: test_nelder_mead.cc
+unit_test: tests/test_nelder_mead.cc
 	$(CXX) $(CXXFLAGS) -o $@ $< -lgtest -lgtest_main
 
 format:
