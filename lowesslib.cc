@@ -260,6 +260,7 @@ std::tuple<array_t,array_t> smooth(array_t x, array_t y, py::object bins,
 {
     x = verify_1d_contiguous(x, "x");
     y = verify_1d_contiguous(y, "y");
+    verify(x.shape(0) == y.shape(0), "`x` and `y` must have the same length");
     if (dropna) {
         auto out = drop_any_nans({x,y});
         x = std::move(out[0]);
@@ -334,6 +335,8 @@ std::tuple<array_t,array_t> interact(array_t x, array_t y, array_t z, py::object
     x = verify_1d_contiguous(x, "x");
     y = verify_1d_contiguous(y, "y");
     z = verify_1d_contiguous(z, "z");
+    verify(x.shape(0) == y.shape(0) && y.shape(0) == z.shape(0),
+           "`x`, `y`, and `z` must have the same length");
     if (dropna) {
         auto out = drop_any_nans({x,y,z});
         x = std::move(out[0]);
@@ -374,6 +377,7 @@ std::tuple<array_t,array_t> expectile(array_t x, array_t y, float tau, py::objec
 {
     x = verify_1d_contiguous(x, "x");
     y = verify_1d_contiguous(y, "y");
+    verify(x.shape(0) == y.shape(0), "`x` and `y` must have the same length");
     if (dropna) {
         auto out = drop_any_nans({x,y});
         x = std::move(out[0]);

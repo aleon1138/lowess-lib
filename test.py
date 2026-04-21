@@ -62,6 +62,25 @@ class TestLowess(unittest.TestCase):
         self.assertTrue((a[0] - b[0]).std() < 1e-9)
         self.assertTrue((a[1] - b[1]).std() < 1e-2)
 
+    def test_interact(self):
+        x, y, z = generate_data(8 * 1252 + 3)  # not a multiple of 8, exercises scalar tail
+        bins = np.linspace(0.1, 2.0, 20).astype("f")
+        h = 0.3
+
+        # Python reference implementation
+        bi_ref = np.zeros(len(bins), dtype="f")
+        for i, z0 in enumerate(bins):
+            w = np.exp(-0.5 * ((z0 - z) / h) ** 2).astype("f")
+            w2 = w * w
+            xx = np.sum(x * x * w2)
+            xy = np.sum(x * y * w2)
+            bi_ref[i] = xy / xx if xx > 0 else 0
+
+        zi, bi = low2.interact(x, y, z, bins=bins, bandwidth=h)
+
+        self.assertTrue(np.allclose(zi, bins))
+        self.assertTrue((bi - bi_ref).std() < 1e-2)
+
     def test_expectile(self):
         x = np.random.randn(8 * 1234 + 7)
         y = np.maximum(-x, 0) + np.random.randn(len(x)) * np.maximum(x / 2, 0.2)
