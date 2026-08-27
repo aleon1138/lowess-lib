@@ -12,7 +12,7 @@ packages = []
 
 [project]
 name = "lowesslib"
-version = "0.2.2"
+version = "0.3.0"
 description = "Utilities for Locally Weighted Scatterplot Smoothing"
 readme = "README.md"
 authors = [
