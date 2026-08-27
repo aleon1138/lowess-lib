@@ -39,9 +39,6 @@ python -m pytest tests/test_lowess.py::TestLowess::test_smooth_avx -v
 
 Tests compare the C++ extension against a Numba reference implementation
 (`ext/lowesslib_numba.py`) and SciPy for expectile regression.
-`inc/nelder_mead.h` still has a GoogleTest suite in `tests/test_nelder_mead.cc`,
-built and run by `make test`, though nothing in the library uses that header
-any more.
 
 `tests/test_lowess.py` also defines a `benchmark()` helper, which is not
 collected by pytest — import and call it directly to time `smooth()` against

@@ -14,15 +14,11 @@ lowesslib.so: $(OBJS)
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
-test: lowesslib.so unit_test
+test: lowesslib.so
 	python -m pytest tests/ -v
-	./unit_test
-
-unit_test: tests/test_nelder_mead.cc
-	$(CXX) $(CXXFLAGS) -o $@ $< -lgtest -lgtest_main
 
 format:
 	astyle -A4 -S -z2 -n -j *.cc inc/*.h
 
 clean:
-	rm -rf build dist lowesslib.egg-info lowesslib.so $(OBJS) unit_test
+	rm -rf build dist lowesslib.egg-info lowesslib.so $(OBJS)

@@ -7,11 +7,6 @@ Locally Weighted Scatterplot Smoothing ([LOWESS](https://en.wikipedia.org/wiki/L
 It uses [OpenMP](https://www.openmp.org) and [AVX](https://en.wikipedia.org/wiki/AVX-512)
 instructions for best performance.
 
-`inc/nelder_mead.h` contains [nelder-mead](https://github.com/develancer/nelder-mead)
-by O'Neill, Burkardt, Różański, distributed under LGPL v3. It is no longer used
-by any of the estimators — `expectile` now solves by IRLS — but is kept as a
-standalone utility.
-
 ## Requirements
 
 * A C++17 compiler
