@@ -27,15 +27,24 @@ make
 ## Testing
 
 ```bash
-# Run all tests
-python test.py
+# Build the extension and run both the Python and C++ suites
+make test
 
-# The test file also contains benchmarks — run a specific test class/method:
-python -m unittest test.TestLowess.test_smooth_avx
+# Python tests only (requires lowesslib.so in the repo root, i.e. `make`)
+python -m pytest tests/ -v
+
+# Run a single test
+python -m pytest tests/test_lowess.py::TestLowess::test_smooth_avx -v
 ```
 
 Tests compare the C++ extension against a Numba reference implementation
-(`ext/lowesslib_numba.py`) and SciPy for expectile regression.
+(`ext/lowesslib_numba.py`) and SciPy for expectile regression. The Nelder-Mead
+optimizer has a separate GoogleTest suite in `tests/test_nelder_mead.cc`, built
+and run by `make test`.
+
+`tests/test_lowess.py` also defines a `benchmark()` helper, which is not
+collected by pytest — import and call it directly to time `smooth()` against
+the Numba reference across a range of input sizes.
 
 ## C++ Formatting
 
@@ -51,6 +60,22 @@ The library has three C++ source files:
   (`_mm256_gauss_kernel_ps`), fast exp approximation, and
   `solve_intercept_simd()` (weighted least squares). Has scalar fallback for
   non-AVX systems.
+
+  The weights are computed in float but the normal-equation sums **must** be
+  accumulated in double. `solve_intercept()` divides by
+  `x00*x11 - x01*x01`, which nearly cancels whenever the local window sits off
+  to one side of the data; float accumulation over a large `n` does not leave
+  enough significant digits to survive it, and the tails of the fit degenerate
+  into noise.
+
+  Three guards decide when a fit is refused (returning NaN, never 0):
+  `GAUSS_CUTOFF` truncates the kernel to compact support, so a window with no
+  nearby data is genuinely empty rather than sharing one floor weight;
+  `MAX_EXTRAPOLATION` bounds `|x01/x00|`, the distance in bandwidths to the
+  supporting data's centre of mass, which is also the factor amplifying any
+  slope error; and `COND_TOL` bounds the cancellation in the denominator.
+  `ext/lowesslib_numba.py` mirrors all three and the tests compare against it,
+  so the constants must be kept in sync.
 - **`expectile.cc`** — Expectile regression using the Nelder-Mead optimizer
   from `inc/nelder_mead.h`. `solve_expectile()` calls the `LossFunction` struct
   which uses AVX2 internally.

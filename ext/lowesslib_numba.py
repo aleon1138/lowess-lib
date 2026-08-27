@@ -27,16 +27,25 @@ def _process_bins_array(x, bins):
     return x
 
 
+# Must match the constants in lowess.cc
+GAUSS_CUTOFF = 30.0
+MAX_EXTRAPOLATION = 3.0
+COND_TOL = 1e-12
+
+
 @numba.njit(parallel=True)
 def _solve_intercept(x, y, x_out, h):
     assert len(x) == len(y), "input length mismatch"
     assert h > 0, "invalid bandwidth"
 
-    y_out = np.zeros(len(x_out), dtype="f")
+    # Bins the kernel refuses to fit stay NaN, matching the C++ kernel
+    y_out = np.full(len(x_out), np.nan, dtype="f")
     for j in numba.prange(len(x_out)):
         x00, x01, x11, xy0, xy1 = 0, 0, 0, 0, 0
         for i in range(len(x)):
             u = (x[i] - x_out[j]) / h
+            if u * u >= 2.0 * GAUSS_CUTOFF:  # kernel has compact support
+                continue
             w = np.exp(-0.5 * u * u)
             w2 = w * w
             x00 += w2
@@ -45,9 +54,12 @@ def _solve_intercept(x, y, x_out, h):
             xy0 += w2 * y[i]
             xy1 += w2 * y[i] * u
 
+        if x00 <= 0 or abs(x01 / x00) > MAX_EXTRAPOLATION:
+            continue  # no data, or the window is extrapolating
+
         numer = x11 * xy0 - x01 * xy1
         denom = x00 * x11 - x01 * x01
-        if denom > 0:
+        if denom > COND_TOL * x00 * x11:
             y_out[j] = numer / denom
     return y_out
 

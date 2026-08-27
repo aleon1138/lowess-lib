@@ -58,6 +58,24 @@ lowesslib:
 By default, `lowesslib` checks for and drops NaNs and Infs. This can slow things
 down for large datasets, so you can disable this with `dropna=False`.
 
+Note that NaN can also come back *out*. A bin is returned as NaN, rather than a
+number that could be mistaken for a real estimate, when its local window holds
+no data at all, or holds data whose centre of mass is more than 3 bandwidths
+away.
+
+The second case is worth knowing about. `smooth()` is a local *linear* fit: it
+reports where the fitted line crosses the bin, which works out to
+`ybar - b*ubar`, with `ubar` the mean distance to the supporting data in
+bandwidths. Interior bins have `ubar ~ 0` and reduce to a local average. But a
+window that has drifted several bandwidths off has only a sliver of far-off
+data to fit a slope `b` to, so `b` measures noise — and `ubar` multiplies it.
+The result is a smooth, confident-looking curve that can sit far outside the
+range of your `y`. Refusing those bins is deliberate.
+
+If you are seeing more NaNs than you expect, it usually means `bins` reaches
+past the range of your data, or `bandwidth` is too narrow for the local
+density.
+
 ```python
 n = 10_000_000
 x = np.random.randn(n)
