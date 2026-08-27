@@ -32,6 +32,17 @@
 #define MAX_EXTRAPOLATION 3.0
 
 
+/*
+ * `s00*s11 - s01*s01` is a difference of two nearly equal products, so testing
+ * it against 0 is not enough: once the local window carries no real spread in
+ * `u`, what survives the subtraction is pure round-off of either sign, and
+ * dividing by it yields noise. Compare against the scale of the terms instead.
+ * Windows that are merely off to one side of the data still retain ~1e-5 of
+ * that scale, while genuinely degenerate ones land at ~1e-16.
+ */
+#define COND_TOL 1e-12
+
+
 inline double gauss_kernel(double u)
 {
     double uu = u * u;

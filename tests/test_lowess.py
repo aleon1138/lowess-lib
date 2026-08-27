@@ -129,6 +129,68 @@ class TestLowess(unittest.TestCase):
         _, yi = low2.smooth(x, x * 2 + y, np.linspace(-1, 1, 20), bandwidth=0.5)
         self.assertTrue(np.isfinite(yi).all())
 
+    def test_expectile_is_scale_equivariant(self):
+        """
+        An expectile satisfies `expectile(c*y) == c*expectile(y)`, so rescaling
+        `y` must be a no-op. The previous Nelder-Mead solver stopped on the
+        absolute spread of the loss, and since the loss was divided by the full
+        point count rather than the weight the window carried, its magnitude
+        collapsed on sparse windows and the solver quit early. Rescaling `y`
+        then changed the answer, which is how that bug shows itself.
+        """
+        n = 100_000
+        x = np.random.rand(n).astype("f")
+        y = np.clip(0.3 + 0.5 * x + 0.05 * np.random.randn(n), 0, 1).astype("f")
+        y[x > 0.85] = np.nan
+        bins = np.linspace(0.70, 0.88, 25)
+
+        _, base = low2.expectile(x, y, 0.1, bins, bandwidth=0.01)
+        for c in (1e-3, 1e3):
+            _, s = low2.expectile(x, (y * c).astype("f"), 0.1, bins, bandwidth=0.01)
+            # equal_nan also asserts that which bins are refused does not
+            # depend on the scale of `y`
+            self.assertTrue(
+                np.allclose(s / c, base, rtol=1e-4, atol=1e-6, equal_nan=True)
+            )
+
+    def test_expectile_monotone_in_tau(self):
+        """
+        Expectiles are non-decreasing in `tau`, by definition. Checked over
+        windows that run from the interior out to the edge of the data, since
+        that is where a solver that quits early goes wrong: each `tau` bails
+        out at a different point and the answers come back out of order.
+        """
+        n = 100_000
+        x = np.random.rand(n).astype("f")
+        y = np.clip(0.3 + 0.5 * x + 0.05 * np.random.randn(n), 0, 1).astype("f")
+        y[x > 0.85] = np.nan
+        bins = np.linspace(0.70, 0.87, 25)
+
+        taus = np.arange(0.1, 1.0, 0.1)
+        e = np.array(
+            [low2.expectile(x, y, t, bins, bandwidth=0.01)[1] for t in taus]
+        )
+        # which bins are refused must not depend on tau
+        self.assertTrue((np.isnan(e) == np.isnan(e[0])).all())
+        e = e[:, np.isfinite(e[0])]
+        self.assertTrue(e.size > 0)
+        self.assertTrue((np.diff(e, axis=0) >= -1e-5).all())
+
+    def test_expectile_half_matches_smooth(self):
+        """
+        At `tau = 0.5` the asymmetric weight is constant, so the expectile is
+        the ordinary local linear fit. The two differ only in that `smooth()`
+        weights with the fast SIMD exp approximation.
+        """
+        n = 50_000
+        x = np.random.randn(n).astype("f")
+        y = (x + np.random.randn(n)).astype("f")
+        bins = np.linspace(-1.5, 1.5, 20)
+
+        _, a = low2.smooth(x, y, bins, bandwidth=0.3)
+        _, b = low2.expectile(x, y, 0.5, bins, bandwidth=0.3)
+        self.assertTrue(np.abs(a - b).max() < 1e-2)
+
     def test_extrapolation_is_nan(self):
         """
         A local linear fit reports where the fitted line crosses the evaluation
