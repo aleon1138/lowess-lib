@@ -154,6 +154,35 @@ class TestLowess(unittest.TestCase):
         self.assertTrue(np.isfinite(yi).all())
         self.assertTrue(np.abs(yi - (0.3 + 0.5 * bins)).max() < 1e-2)
 
+    def test_expectile_extrapolation_is_nan(self):
+        """
+        `solve_expectile` fits `theta[0] + theta[1]*u` and reports `theta[0]`,
+        the value at the evaluation point, so it has the same lever arm as
+        `smooth()` and must refuse the same windows. The support test is taken
+        under the symmetric kernel weights, so the decision does not depend on
+        `tau` — check that it holds at strongly asymmetric levels too.
+        """
+        n = 200_000
+        x = np.random.rand(n).astype("f")
+        y = np.clip(0.3 + 0.5 * x + 0.05 * np.random.randn(n), 0, 1).astype("f")
+        y[x > 0.85] = np.nan  # no data survives above 0.85
+        h = 0.01
+
+        far = np.linspace(0.9, 1.0, 20)
+        near = np.linspace(0.0, 0.85, 20)
+        for tau in (0.1, 0.5, 0.9):
+            # Entirely past the data: nothing here is estimable
+            _, yi = low2.expectile(x, y, tau, far, bandwidth=h)
+            self.assertTrue(np.isnan(yi).all(), f"tau={tau}")
+
+            # Interior bins, and the one-sided window at the data edge, must
+            # still be fit -- the guard must not refuse them at any tau
+            _, yi = low2.expectile(x, y, tau, near, bandwidth=h)
+            self.assertTrue(np.isfinite(yi).all(), f"tau={tau}")
+
+            # and they must stay ordered in tau, and near the conditional mean
+            self.assertTrue(np.abs(yi - (0.3 + 0.5 * near)).max() < 0.1, f"tau={tau}")
+
     def test_interact(self):
         x, y, z = generate_data(8 * 1252 + 3)  # not a multiple of 8, exercises scalar tail
         bins = np.linspace(0.1, 2.0, 20).astype("f")

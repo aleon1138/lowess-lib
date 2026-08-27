@@ -579,7 +579,11 @@ PYBIND11_MODULE(lowesslib, m)
         Interpolation point locations in `x`.
 
     yi : ndarray
-        Estimated expectile curve evaluated at `xi`.)pbdoc",
+        Estimated expectile curve evaluated at `xi`. A bin is returned as NaN
+        when its local window holds no data, or holds data whose centre of mass
+        is more than 3 bandwidths away, on the same terms as `smooth`. The test
+        is taken under the kernel weights alone, so which bins are refused does
+        not depend on `tau`.)pbdoc",
           py::arg("x"), py::arg("y"), py::arg("tau"),
           py::arg("bins") = 100, py::arg("bandwidth") = py::none(),
           py::arg("dropna") = true);
