@@ -222,18 +222,10 @@ float solve_intercept(const float *x, const float *y, float x0, float h, int n)
     double denom = o.x00 * o.x11 - o.x01 * o.x01;
 
     /*
-     * `denom` is a difference of two nearly equal products, so testing it
-     * against 0 is not enough: once the local window carries no real spread in
-     * `u`, what survives the subtraction is pure round-off of either sign, and
-     * dividing by it yields noise. Compare against the scale of the terms
-     * instead. Windows that are merely off to one side of the data still
-     * retain ~1e-5 of that scale, while genuinely degenerate ones land at
-     * ~1e-16, so the cutoff sits well clear of both.
-     *
-     * Report degeneracy as NaN rather than 0 — 0 is a perfectly plausible
-     * estimate and silently blends in with the rest of the curve.
+     * See COND_TOL in inc/kernel.h for why this is a relative test. Report
+     * degeneracy as NaN rather than 0 — 0 is a perfectly plausible estimate
+     * and silently blends in with the rest of the curve.
      */
-    const double COND_TOL = 1e-12;
     return denom > COND_TOL * o.x00 * o.x11? numer / denom : NAN;
 }
 

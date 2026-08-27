@@ -38,9 +38,7 @@ python -m pytest tests/test_lowess.py::TestLowess::test_smooth_avx -v
 ```
 
 Tests compare the C++ extension against a Numba reference implementation
-(`ext/lowesslib_numba.py`) and SciPy for expectile regression. The Nelder-Mead
-optimizer has a separate GoogleTest suite in `tests/test_nelder_mead.cc`, built
-and run by `make test`.
+(`ext/lowesslib_numba.py`) and SciPy for expectile regression.
 
 `tests/test_lowess.py` also defines a `benchmark()` helper, which is not
 collected by pytest — import and call it directly to time `smooth()` against
@@ -76,9 +74,22 @@ The library has three C++ source files:
   slope error; and `COND_TOL` bounds the cancellation in the denominator.
   `ext/lowesslib_numba.py` mirrors all three and the tests compare against it,
   so the constants must be kept in sync.
-- **`expectile.cc`** — Expectile regression using the Nelder-Mead optimizer
-  from `inc/nelder_mead.h`. `solve_expectile()` calls the `LossFunction` struct
-  which uses AVX2 internally.
+- **`expectile.cc`** — Expectile regression by IRLS. The loss is convex and
+  piecewise quadratic, so `expectile_sums()` fixes the asymmetric weights from
+  the current residuals and `solve_normal_equations()` solves the resulting
+  weighted least squares problem; it converges in ~5 passes. `tau = 0.5` makes
+  the weights constant, so it is the same system `solve_intercept()` solves and
+  is returned directly from the seed pass.
+
+  The convergence test **must** stay relative — it is measured against the
+  weighted RMS of `y` in the window. An absolute tolerance is really a
+  tolerance on the scale of `y` and on how much kernel weight the window
+  carries, which is what made the previous Nelder-Mead solver quit early on
+  sparse windows and return fits that were not scale-equivariant.
+
+- **`inc/kernel.h`** — `GAUSS_CUTOFF`, `MAX_EXTRAPOLATION`, `COND_TOL` and
+  `gauss_kernel()`, shared by `lowess.cc` and `expectile.cc`. Every estimator
+  has to agree on where the kernel stops and on when a fit is refused.
 - **`lowesslib.cc`** — Pybind11 bindings. All public API lives here: input
   validation, NaN handling, bin generation, and `parallel_apply()` which
   dispatches kernel calls across OpenMP threads.

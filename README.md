@@ -7,10 +7,6 @@ Locally Weighted Scatterplot Smoothing ([LOWESS](https://en.wikipedia.org/wiki/L
 It uses [OpenMP](https://www.openmp.org) and [AVX](https://en.wikipedia.org/wiki/AVX-512)
 instructions for best performance.
 
-For computing `expectile` it makes use of a third-party Nelder-Mead solver.
-`inc/nelder_mead.h` contains [nelder-mead](https://github.com/develancer/nelder-mead)
-by O'Neill, Burkardt, Różański, distributed under LGPL v3.
-
 ## Requirements
 
 * A C++17 compiler
@@ -131,7 +127,10 @@ tight_layout()
 
 ### Calculating Expectiles
 
-At each interpolation point we use Nelder-Mead to solve for expectiles:
+At each interpolation point we solve for expectiles by IRLS. The loss is convex
+and piecewise quadratic, so each pass fixes the asymmetric weights from the
+current residuals and solves a weighted least squares problem; it settles in
+around five passes:
 
 ```python
 x = np.random.uniform(0, 4, size=10_000)
