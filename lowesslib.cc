@@ -448,9 +448,12 @@ PYBIND11_MODULE(lowesslib, m)
         Interpolation point locations in `x`.
 
     yi : ndarray
-        Smoothed, interpolated values of `y` at `xi`. Bins whose local window
-        holds too little data to identify a fit are returned as NaN; this
-        typically happens where `bins` extends past the range of `x`, or where
+        Smoothed, interpolated values of `y` at `xi`. A bin is returned as NaN
+        when its local window holds no data, or holds data whose centre of mass
+        is more than 3 bandwidths away. In the latter case the fit would be an
+        extrapolation whose value depends on a slope estimated from a thin
+        sliver of far-off points, and can land far outside the range of `y`.
+        This typically means `bins` extends past the range of `x`, or that
         `bandwidth` is too narrow for the local density.)pbdoc",
 
           py::arg("x"), py::arg("y"), py::arg("bins") = 100,

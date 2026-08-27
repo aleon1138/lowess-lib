@@ -66,7 +66,16 @@ The library has three C++ source files:
   `x00*x11 - x01*x01`, which nearly cancels whenever the local window sits off
   to one side of the data; float accumulation over a large `n` does not leave
   enough significant digits to survive it, and the tails of the fit degenerate
-  into noise. Windows too degenerate to fit return NaN, not 0.
+  into noise.
+
+  Three guards decide when a fit is refused (returning NaN, never 0):
+  `GAUSS_CUTOFF` truncates the kernel to compact support, so a window with no
+  nearby data is genuinely empty rather than sharing one floor weight;
+  `MAX_EXTRAPOLATION` bounds `|x01/x00|`, the distance in bandwidths to the
+  supporting data's centre of mass, which is also the factor amplifying any
+  slope error; and `COND_TOL` bounds the cancellation in the denominator.
+  `ext/lowesslib_numba.py` mirrors all three and the tests compare against it,
+  so the constants must be kept in sync.
 - **`expectile.cc`** — Expectile regression using the Nelder-Mead optimizer
   from `inc/nelder_mead.h`. `solve_expectile()` calls the `LossFunction` struct
   which uses AVX2 internally.

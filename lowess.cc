@@ -2,6 +2,35 @@
 
 
 /*
+ * The Gaussian is truncated at exp(-GAUSS_CUTOFF), i.e. it has compact support
+ * over |u| < sqrt(2*GAUSS_CUTOFF), about 7.75 bandwidths. Past that the weight
+ * is below 1e-13 and contributes nothing to a well-posed fit, but keeping it
+ * non-zero is actively harmful -- see _mm256_gauss_kernel_ps().
+ *
+ * The SIMD and scalar paths must agree on this cutoff, or results will shift
+ * depending on where an input happens to fall relative to a multiple of 8.
+ */
+#define GAUSS_CUTOFF 30.0f
+
+
+/*
+ * How far, in bandwidths, the data supporting a fit may sit from the point
+ * being estimated before the fit is refused. See solve_intercept() for why
+ * this is the natural quantity to bound. Interior windows sit at ~0 and a
+ * one-sided window at a true data boundary at 1/sqrt(pi) ~= 0.56, so 3 leaves
+ * legitimate edge fits untouched.
+ */
+#define MAX_EXTRAPOLATION 3.0
+
+
+inline double gauss_kernel(double u)
+{
+    double uu = u * u;
+    return uu < 2.0 * GAUSS_CUTOFF? exp(-0.5 * uu) : 0.0;
+}
+
+
+/*
  * Accumulated in double. The intercept is recovered from
  * `(x11*xy0 - x01*xy1) / (x00*x11 - x01*x01)`, and that denominator suffers
  * heavy cancellation whenever the local window sits off to one side of the
@@ -31,21 +60,27 @@ struct covar_t {
 
 /*
  *  Gaussian kernel:
- *    y = exp(-0.5*u*u)
+ *    y = exp(-0.5*u*u)  for 0.5*u*u < GAUSS_CUTOFF, else 0
  */
 __m256 _mm256_gauss_kernel_ps(__m256 u)
 {
     __m256 x = _mm256_mul_ps(_mm256_set1_ps(-0.5f), _mm256_mul_ps(u,u));
 
-    // Clamp `x` to avoid numerical issues with large negative values
-    x = _mm256_max_ps(x, _mm256_set1_ps(-30.0f));
+    // The bit trick below overflows for large negative values, so `x` has to
+    // be clamped before it is used. Clamping alone would leave every distant
+    // point sharing one floor weight of exp(-30), which stops the kernel from
+    // being local: a window with no nearby data degenerates into an unweighted
+    // global fit and returns a confident-looking extrapolation. Truncate to
+    // zero instead, so such a window is empty and reports itself as such.
+    __m256 keep = _mm256_cmp_ps(x, _mm256_set1_ps(-GAUSS_CUTOFF), _CMP_GT_OQ);
+    x = _mm256_max_ps(x, _mm256_set1_ps(-GAUSS_CUTOFF));
 
     // Fast approximation for exp(x)
     // See: stackoverflow.com/q/47025373
     __m256  a = _mm256_set1_ps(12102203.1615614f); // (1 << 23) / log(2)
     __m256i b = _mm256_set1_epi32((127 << 23) - 298765);
     __m256i t = _mm256_add_epi32(_mm256_cvtps_epi32(_mm256_mul_ps(a, x)), b);
-    return _mm256_castsi256_ps(t);
+    return _mm256_and_ps(_mm256_castsi256_ps(t), keep);
 }
 
 
@@ -179,13 +214,35 @@ float solve_intercept(const float *x, const float *y, float x0, float h, int n)
     float k = 1.0f / h;
     for (int i = n0; i < n; ++i) {
         double u  = (x0 - x[i]) * k;
-        double w  = exp(-0.5 * u * u);
+        double w  = gauss_kernel(u);
         double w2 = w * w;
         o.x00 += w2;
         o.x01 += w2 * u;
         o.x11 += w2 * u * u;
         o.xy0 += w2 * y[i];
         o.xy1 += w2 * y[i] * u;
+    }
+
+    /*
+     * This is a local *linear* fit, so what gets reported is where the fitted
+     * line crosses `u = 0`, and that decomposes exactly as
+     *
+     *     estimate = ybar - b * ubar,     ubar = x01/x00
+     *
+     * where `ubar` is the weighted mean of `u`: the distance, in bandwidths,
+     * from the point being estimated to the centre of mass of the data that
+     * supports it. It is therefore also the factor by which any error in the
+     * fitted slope `b` is amplified.
+     *
+     * Interior windows sit at ubar ~ 0 and the linear term vanishes, leaving
+     * the local weighted mean. But a window that has drifted several
+     * bandwidths off has only a thin sliver of data to fit a slope to, so `b`
+     * measures noise, and multiplying that noise by a long lever arm produces
+     * confident-looking values many times larger than any real `y`. Refuse
+     * rather than report it.
+     */
+    if (!(o.x00 > 0) || fabs(o.x01 / o.x00) > MAX_EXTRAPOLATION) {
+        return NAN;
     }
 
     double numer = o.x11 * o.xy0 - o.x01 * o.xy1;
@@ -221,7 +278,7 @@ float histogram_kernel(const float *x, float x0, float h, int n)
     float k = 1.0f / h;
     for (int i = n0; i < n; ++i) {
         float u = (x0 - x[i]) * k;
-        s += expf(-0.5f * u * u);
+        s += gauss_kernel(u);
     }
 
     const float K0 = 0.3989422804014327f; // 1/sqrt(2*pi)
@@ -242,7 +299,7 @@ float interact_kernel(const float *x, const float *y, const float *z,
 
     for (int i = n0; i < n; ++i) {
         float u = (z0 - z[i]) / h;
-        float w = expf(-0.5 * u * u);
+        float w = gauss_kernel(u);
         o.xx += x[i] * x[i] * w * w;
         o.xy += x[i] * y[i] * w * w;
     }

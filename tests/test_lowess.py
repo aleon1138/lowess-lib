@@ -79,17 +79,20 @@ class TestLowess(unittest.TestCase):
         bins = np.linspace(0.9, 1.0, 100)
         h = 0.01
 
-        # Same estimator, accumulated in double
+        # Same estimator, accumulated in double, with the same guards
         m = np.isfinite(x) & np.isfinite(y)
         xd, yd = x[m].astype("f8"), y[m].astype("f8")
-        ref = np.zeros(len(bins))
+        ref = np.full(len(bins), np.nan)
         for i, x0 in enumerate(bins):
             u = (x0 - xd) / h
-            w2 = np.exp(-u * u)
+            w2 = np.where(u * u < 2 * low1.GAUSS_CUTOFF, np.exp(-u * u), 0.0)
             x00, x01, x11 = w2.sum(), (w2 * u).sum(), (w2 * u * u).sum()
             xy0, xy1 = (w2 * yd).sum(), (w2 * u * yd).sum()
+            if x00 <= 0 or abs(x01 / x00) > low1.MAX_EXTRAPOLATION:
+                continue
             denom = x00 * x11 - x01 * x01
-            ref[i] = (x11 * xy0 - x01 * xy1) / denom if denom > 0 else np.nan
+            if denom > low1.COND_TOL * x00 * x11:
+                ref[i] = (x11 * xy0 - x01 * xy1) / denom
 
         _, yi = low2.smooth(x, y, bins, bandwidth=h)
         self.assertTrue(np.array_equal(np.isnan(yi), np.isnan(ref)))
@@ -97,6 +100,7 @@ class TestLowess(unittest.TestCase):
 
         # A local linear fit of data bounded by [0, 0.989] has no business
         # returning 3.4 anywhere on this grid.
+        yi = yi[np.isfinite(yi)]
         self.assertTrue(yi.min() > -0.1 and yi.max() < 1.1)
 
     def test_degenerate_fit_is_nan(self):
@@ -124,6 +128,31 @@ class TestLowess(unittest.TestCase):
         x = np.random.randn(1000).astype("f")
         _, yi = low2.smooth(x, x * 2 + y, np.linspace(-1, 1, 20), bandwidth=0.5)
         self.assertTrue(np.isfinite(yi).all())
+
+    def test_extrapolation_is_nan(self):
+        """
+        A local linear fit reports where the fitted line crosses the evaluation
+        point, i.e. `ybar - b*ubar`. Once the supporting data has drifted a few
+        bandwidths away, `b` is fitting noise and `ubar` amplifies it, so the
+        result can be many times larger than any real `y`. Those bins must come
+        back as NaN rather than as a confident-looking number.
+        """
+        n = 200_000
+        x = np.random.rand(n).astype("f")
+        y = np.clip(0.3 + 0.5 * x + 0.05 * np.random.randn(n), 0, 1).astype("f")
+        y[x > 0.85] = np.nan  # no data survives above 0.85
+        h = 0.01
+
+        # Entirely past the data: nothing here is estimable
+        _, yi = low2.smooth(x, y, np.linspace(0.9, 1.0, 50), bandwidth=h)
+        self.assertTrue(np.isnan(yi).all())
+
+        # Interior bins, and the one-sided window right at the data edge, must
+        # still be fit normally and accurately
+        bins = np.linspace(0.0, 0.85, 20)
+        _, yi = low2.smooth(x, y, bins, bandwidth=h)
+        self.assertTrue(np.isfinite(yi).all())
+        self.assertTrue(np.abs(yi - (0.3 + 0.5 * bins)).max() < 1e-2)
 
     def test_interact(self):
         x, y, z = generate_data(8 * 1252 + 3)  # not a multiple of 8, exercises scalar tail
