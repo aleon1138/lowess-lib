@@ -448,7 +448,10 @@ PYBIND11_MODULE(lowesslib, m)
         Interpolation point locations in `x`.
 
     yi : ndarray
-        Smoothed, interpolated values of `y` at `xi`.)pbdoc",
+        Smoothed, interpolated values of `y` at `xi`. Bins whose local window
+        holds too little data to identify a fit are returned as NaN; this
+        typically happens where `bins` extends past the range of `x`, or where
+        `bandwidth` is too narrow for the local density.)pbdoc",
 
           py::arg("x"), py::arg("y"), py::arg("bins") = 100,
           py::arg("bandwidth") = py::none(),
@@ -527,7 +530,8 @@ PYBIND11_MODULE(lowesslib, m)
         Interpolation point locations in `z`.
 
     f(zi) : ndarray
-        Estimated functional form of `f(z)` in the model `y = x * f(z)`)pbdoc",
+        Estimated functional form of `f(z)` in the model `y = x * f(z)`.
+        Bins whose local window holds too little data are returned as NaN.)pbdoc",
           py::arg("x"), py::arg("y"), py::arg("z"), py::arg("bins") = 100,
           py::arg("bandwidth") = py::none(),
           py::arg("dropna") = true);

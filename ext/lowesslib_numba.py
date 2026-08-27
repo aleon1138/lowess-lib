@@ -32,7 +32,8 @@ def _solve_intercept(x, y, x_out, h):
     assert len(x) == len(y), "input length mismatch"
     assert h > 0, "invalid bandwidth"
 
-    y_out = np.zeros(len(x_out), dtype="f")
+    # Bins whose local window is degenerate stay NaN, matching the C++ kernel
+    y_out = np.full(len(x_out), np.nan, dtype="f")
     for j in numba.prange(len(x_out)):
         x00, x01, x11, xy0, xy1 = 0, 0, 0, 0, 0
         for i in range(len(x)):

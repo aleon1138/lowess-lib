@@ -1,12 +1,20 @@
 #include <cmath>
 
 
+/*
+ * Accumulated in double. The intercept is recovered from
+ * `(x11*xy0 - x01*xy1) / (x00*x11 - x01*x01)`, and that denominator suffers
+ * heavy cancellation whenever the local window sits off to one side of the
+ * data (`x01*x01` approaches `x00*x11`). Summing hundreds of thousands of
+ * terms in float leaves fewer significant digits than the cancellation eats,
+ * so the tails of the fit degenerate into noise.
+ */
 struct coeff_t {
-    float x00;
-    float x01;
-    float x11;
-    float xy0;
-    float xy1;
+    double x00;
+    double x01;
+    double x11;
+    double xy0;
+    double xy1;
 };
 
 
@@ -45,6 +53,15 @@ __m256 _mm256_gauss_kernel_ps(__m256 u)
  *  Horizontal sum
  *  See: stackoverflow.com/q/6996764
  */
+double hsum(__m256d v)
+{
+    __m128d lo   = _mm256_castpd256_pd128(v);
+    __m128d hi   = _mm256_extractf128_pd(v, 1);
+    __m128d lohi = _mm_add_pd(lo, hi);
+    return _mm_cvtsd_f64(_mm_add_sd(lohi, _mm_unpackhi_pd(lohi, lohi)));
+}
+
+
 float hsum(__m256 v)
 {
     __m128 lo   = _mm256_castps256_ps128(v);
@@ -64,25 +81,34 @@ coeff_t solve_intercept_simd(const float *x_, const float *y_, float x0_, float 
     __m256 x0 = _mm256_set1_ps(x0_);
     __m256 k  = _mm256_set1_ps(1.0f / h);
 
-    __m256 x00 = _mm256_setzero_ps();
-    __m256 x01 = _mm256_setzero_ps();
-    __m256 x11 = _mm256_setzero_ps();
-    __m256 xy0 = _mm256_setzero_ps();
-    __m256 xy1 = _mm256_setzero_ps();
+    __m256d x00 = _mm256_setzero_pd();
+    __m256d x01 = _mm256_setzero_pd();
+    __m256d x11 = _mm256_setzero_pd();
+    __m256d xy0 = _mm256_setzero_pd();
+    __m256d xy1 = _mm256_setzero_pd();
 
     for (int i = 0; i < n; i += 8) {
         __m256 x   = _mm256_loadu_ps(x_+i);
-        __m256 y   = _mm256_loadu_ps(y_+i);
+        __m256 yf  = _mm256_loadu_ps(y_+i);
         __m256 u   = _mm256_mul_ps(_mm256_sub_ps(x0, x), k);
         __m256 w   = _mm256_gauss_kernel_ps(u);
-        __m256 w2  = _mm256_mul_ps(w, w);
-        __m256 w2u = _mm256_mul_ps(w2, u);
+        __m256 w2f = _mm256_mul_ps(w, w);
 
-        x00 = _mm256_add_ps  (w2,     x00);
-        x01 = _mm256_fmadd_ps(w2,  u, x01);
-        x11 = _mm256_fmadd_ps(w2u, u, x11);
-        xy0 = _mm256_fmadd_ps(w2,  y, xy0);
-        xy1 = _mm256_fmadd_ps(w2u, y, xy1);
+        // Widen once, then build the five sums with FMA in double
+        for (int half = 0; half < 2; ++half) {
+            __m128 w2s = half? _mm256_extractf128_ps(w2f,1) : _mm256_castps256_ps128(w2f);
+            __m128 us  = half? _mm256_extractf128_ps(u,  1) : _mm256_castps256_ps128(u);
+            __m128 ys  = half? _mm256_extractf128_ps(yf, 1) : _mm256_castps256_ps128(yf);
+            __m256d w2 = _mm256_cvtps_pd(w2s);
+            __m256d ud = _mm256_cvtps_pd(us);
+            __m256d yd = _mm256_cvtps_pd(ys);
+            __m256d w2u = _mm256_mul_pd(w2, ud);
+            x00 = _mm256_add_pd (x00, w2);
+            x01 = _mm256_add_pd (x01, w2u);
+            x11 = _mm256_fmadd_pd(w2u, ud, x11);
+            xy0 = _mm256_fmadd_pd(w2,  yd, xy0);
+            xy1 = _mm256_fmadd_pd(w2u, yd, xy1);
+        }
     }
 
     // *INDENT-OFF*
@@ -152,9 +178,9 @@ float solve_intercept(const float *x, const float *y, float x0, float h, int n)
 
     float k = 1.0f / h;
     for (int i = n0; i < n; ++i) {
-        float u  = (x0 - x[i]) * k;
-        float w  = expf(-0.5f * u * u);
-        float w2 = w * w;
+        double u  = (x0 - x[i]) * k;
+        double w  = exp(-0.5 * u * u);
+        double w2 = w * w;
         o.x00 += w2;
         o.x01 += w2 * u;
         o.x11 += w2 * u * u;
@@ -162,9 +188,23 @@ float solve_intercept(const float *x, const float *y, float x0, float h, int n)
         o.xy1 += w2 * y[i] * u;
     }
 
-    float numer = o.x11 * o.xy0 - o.x01 * o.xy1;
-    float denom = o.x00 * o.x11 - o.x01 * o.x01;
-    return denom > 0? numer / denom : 0;
+    double numer = o.x11 * o.xy0 - o.x01 * o.xy1;
+    double denom = o.x00 * o.x11 - o.x01 * o.x01;
+
+    /*
+     * `denom` is a difference of two nearly equal products, so testing it
+     * against 0 is not enough: once the local window carries no real spread in
+     * `u`, what survives the subtraction is pure round-off of either sign, and
+     * dividing by it yields noise. Compare against the scale of the terms
+     * instead. Windows that are merely off to one side of the data still
+     * retain ~1e-5 of that scale, while genuinely degenerate ones land at
+     * ~1e-16, so the cutoff sits well clear of both.
+     *
+     * Report degeneracy as NaN rather than 0 — 0 is a perfectly plausible
+     * estimate and silently blends in with the rest of the curve.
+     */
+    const double COND_TOL = 1e-12;
+    return denom > COND_TOL * o.x00 * o.x11? numer / denom : NAN;
 }
 
 
@@ -206,5 +246,5 @@ float interact_kernel(const float *x, const float *y, const float *z,
         o.xx += x[i] * x[i] * w * w;
         o.xy += x[i] * y[i] * w * w;
     }
-    return o.xx > 0.0? o.xy / o.xx : 0.0;
+    return o.xx > 0.0? o.xy / o.xx : NAN;  // see solve_intercept()
 }

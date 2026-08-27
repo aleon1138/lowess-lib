@@ -58,6 +58,11 @@ lowesslib:
 By default, `lowesslib` checks for and drops NaNs and Infs. This can slow things
 down for large datasets, so you can disable this with `dropna=False`.
 
+Note that NaN can also come back *out*. A bin whose local window holds too
+little data to identify a fit is returned as NaN rather than 0, so that it
+cannot be mistaken for a real estimate. This usually means `bins` reaches past
+the range of your data, or `bandwidth` is too narrow for the local density.
+
 ```python
 n = 10_000_000
 x = np.random.randn(n)
